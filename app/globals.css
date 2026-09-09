@@ -1,0 +1,102 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../vendor/shadcn-tailwind-4.13.0.css";
+
+:root {
+  --ink:#F7F9FC;
+  --canvas:#07111F;
+  --paper:#111B2A;
+  --green:#39E675;
+  --blue:#397BFF;
+  --muted:#7E8796;
+  --line:#233044;
+}
+* { box-sizing:border-box; }
+html { background:var(--canvas); color-scheme:dark; }
+body { margin:0; background:var(--canvas); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+button,input,select,textarea { font:inherit; }
+button { cursor:pointer; }
+::selection { background:var(--green); color:#07111F; }
+.nex-grid { background-image:linear-gradient(rgba(57,123,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(57,123,255,.055) 1px,transparent 1px); background-size:28px 28px; }
+.soft-shadow { box-shadow:0 18px 55px rgba(0,0,0,.28); }
+.card-shadow { box-shadow:0 1px 0 rgba(255,255,255,.025) inset,0 14px 34px rgba(0,0,0,.18); }
+.fade-up { animation:fadeUp .38s ease both; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+.scroll-thin { scrollbar-width:thin; scrollbar-color:#2B3A50 transparent; }
+.scrollbar-none { scrollbar-width:none; }
+.scrollbar-none::-webkit-scrollbar { display:none; }
+.recharts-default-tooltip { background:#111B2A!important; border-color:#233044!important; color:#F7F9FC!important; }
+
+/* NexSell Console — um produto SaaS sóbrio, claro e orientado ao trabalho. */
+.nexsell-console {
+  color-scheme:light;
+  background:#F4F6F8;
+  color:#101828;
+}
+.nexsell-console .font-black { font-weight:700!important; }
+.nexsell-console .font-extrabold { font-weight:700!important; }
+.nexsell-console .rounded-2xl { border-radius:14px!important; }
+.nexsell-console .rounded-3xl { border-radius:18px!important; }
+.nexsell-console .nexsell-panel {
+  background:#FFFFFF;
+  border-color:#E3E8EF;
+  box-shadow:0 1px 2px rgba(16,24,40,.035),0 8px 24px rgba(16,24,40,.035);
+}
+.nexsell-console .card-shadow { box-shadow:0 1px 2px rgba(16,24,40,.035),0 8px 24px rgba(16,24,40,.035); }
+.nexsell-console .bg-\[\#07111F\] { background-color:#F4F6F8!important; }
+.nexsell-console .bg-\[\#111B2A\] { background-color:#FFFFFF!important; }
+.nexsell-console .bg-\[\#0C1725\],
+.nexsell-console .bg-\[\#0B1522\] { background-color:#F7F9FB!important; }
+.nexsell-console .bg-\[\#182536\],
+.nexsell-console .bg-\[\#1B293A\],
+.nexsell-console .bg-\[\#233044\],
+.nexsell-console .bg-\[\#1C2939\] { background-color:#EEF2F6!important; }
+.nexsell-console .border-\[\#233044\],
+.nexsell-console .border-\[\#1F2D40\],
+.nexsell-console .border-\[\#1B293A\] { border-color:#E3E8EF!important; }
+.nexsell-console .text-\[\#F7F9FC\],
+.nexsell-console .text-white { color:#101828!important; }
+.nexsell-console .text-\[\#7E8796\],
+.nexsell-console .text-white\/55,
+.nexsell-console .text-white\/45 { color:#667085!important; }
+.nexsell-console .text-\[\#B0B7C2\],
+.nexsell-console .text-white\/65,
+.nexsell-console .text-white\/70 { color:#475467!important; }
+.nexsell-console .bg-\[\#153B2A\],
+.nexsell-console .bg-\[\#10291F\] { background-color:#ECF8F1!important; }
+.nexsell-console .text-\[\#39E675\] { color:#147A50!important; }
+.nexsell-console .bg-\[\#142C55\] { background-color:#EAF2FF!important; }
+.nexsell-console .text-\[\#397BFF\],
+.nexsell-console .text-\[\#6E9CFF\],
+.nexsell-console .text-\[\#8FB1FF\] { color:#245FC7!important; }
+.nexsell-console .bg-\[\#3D3218\] { background-color:#FFF7E2!important; }
+.nexsell-console .text-\[\#F6C945\] { color:#8A6100!important; }
+.nexsell-console .bg-\[\#402329\] { background-color:#FDECEE!important; }
+.nexsell-console .text-\[\#FF7A83\] { color:#C63D4B!important; }
+.nexsell-console .bg-\[\#2D2450\] { background-color:#F2EEFF!important; }
+.nexsell-console .text-\[\#B698FF\] { color:#6845B7!important; }
+.nexsell-console input,
+.nexsell-console textarea,
+.nexsell-console select { color:#101828; }
+.nexsell-console input::placeholder,
+.nexsell-console textarea::placeholder { color:#98A2B3; }
+.nexsell-console .recharts-default-tooltip { background:#FFFFFF!important; border-color:#E3E8EF!important; color:#101828!important; box-shadow:0 8px 30px rgba(16,24,40,.1); }
+.nexsell-console .nexsell-sidebar { background:#0B1724!important; color:#FFFFFF!important; }
+.nexsell-console .nexsell-sidebar .text-white { color:#FFFFFF!important; }
+.nexsell-console .nexsell-sidebar .text-white\/75 { color:rgba(255,255,255,.75)!important; }
+.nexsell-console .nexsell-sidebar .text-white\/60 { color:rgba(255,255,255,.6)!important; }
+.nexsell-console .nexsell-sidebar .text-white\/55 { color:rgba(255,255,255,.55)!important; }
+.nexsell-console .nexsell-sidebar .text-white\/45 { color:rgba(255,255,255,.45)!important; }
+.nexsell-console .nexsell-sidebar .text-white\/40 { color:rgba(255,255,255,.4)!important; }
+.nexsell-console .nexsell-sidebar .text-white\/35 { color:rgba(255,255,255,.35)!important; }
+.nexsell-console .nexsell-sidebar .bg-\[\#39E675\] { background-color:#39E675!important; }
+.nexsell-console .nexsell-sidebar .text-\[\#07111F\] { color:#07111F!important; }
+.nexsell-console .nexsell-sidebar .text-\[\#39E675\] { color:#39E675!important; }
+.nexsell-console .nexsell-sidebar .bg-\[\#142C55\] { background-color:rgba(255,255,255,.08)!important; }
+.nexsell-console .nexsell-topbar { box-shadow:0 1px 0 rgba(16,24,40,.02); }
+.nexsell-console .nexsell-button.bg-\[\#0D6B4F\] { color:#FFFFFF!important; }
+.nexsell-console button.bg-\[\#39E675\] { background-color:#0D6B4F!important; color:#FFFFFF!important; }
+.nexsell-console .nexsell-topbar .bg-\[\#0B1724\] { background-color:#0B1724!important; color:#FFFFFF!important; }
+.nexsell-console .scroll-thin { scrollbar-color:#C7D0DA transparent; }
+.nexsell-console .hover\:bg-\[\#142235\]:hover { background-color:#F7F9FB!important; }
+@media (max-width:1023px) { .desktop-sidebar { display:none; } }
