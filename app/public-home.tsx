@@ -1,159 +1,611 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, CircleCheck, CircleX, LoaderCircle, LockKeyhole, MessageCircle, ShieldCheck, Smartphone, Sparkles, X, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  FileCheck,
+  MessageCircle,
+  Workflow,
+  Users,
+  Copy,
+  RefreshCw,
+  LogOut,
+} from "lucide-react";
 import { toast, Toaster } from "sonner";
-import { NEXSELL_PLANS, type PlanKey } from "./plans";
-
+import {
+  Action,
+  Brand,
+  Field,
+  Modal,
+  Status,
+  money,
+  date,
+} from "../components/nexsell-ui";
+import { NEXSELL_PLANS, PLAN_ACCESS, type PlanKey } from "./plans";
+import { PromotionBanner } from "./promotion-banner";
 import { TRANSFER_DETAILS } from "./payment-details";
-type PaymentMethod = "BCI" | "EMOLA";
-type PaymentState = { reference: string; status: string; message?: string | null; method:PaymentMethod; amount:number };
-
-const inputClass = "w-full rounded-xl border border-[#233044] bg-[#0C1725] px-3 py-3 text-sm text-[#F7F9FC] outline-none placeholder:text-[#7E8796] focus:border-[#397BFF]";
-const money = (amount:number) => new Intl.NumberFormat("pt-MZ", { maximumFractionDigits:0 }).format(amount);
-const terminalStatuses = new Set(["paid", "failed", "cancelled", "reconciliation_required", "configuration_required"]);
-
-function methodName(method: PaymentMethod) {
-  return method === "BCI" ? "BCI" : "e-Mola";
-}
-
-export function PublicHome({ signedIn = false }:{signedIn?:boolean}) {
-  const [checkout, setCheckout] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<PlanKey>("growth");
-  const [saving, setSaving] = useState(false);
-  const [payment, setPayment] = useState<PaymentState | null>(null);
-  const [form, setForm] = useState({ name:"", email:"", phone:"", company:"", method:"EMOLA" as PaymentMethod });
-  const plan = NEXSELL_PLANS.find(item=>item.key===selectedPlan) ?? NEXSELL_PLANS[1];
-  const paymentReference = payment?.reference;
-  const paymentStatus = payment?.status;
-
-  function choosePlan(key:PlanKey){
-    if(!signedIn){window.location.href="/login";return;}
-    setSelectedPlan(key);
-    setPayment(null);
-    setCheckout(true);
-  }
-
-  useEffect(() => {
-    if(!signedIn)return;
-    let live=true;let initial=true;
-    const refresh=async()=>{try{const r=await fetch("/api/billing/status",{cache:"no-store"});if(r.ok){const j=await r.json();if(live&&j.payment){setPayment(j.payment);if(initial)setCheckout(true);initial=false;}}}catch{}};
-    refresh();const timer=window.setInterval(refresh,15000);
-    return()=>{live=false;window.clearInterval(timer)};
-  },[signedIn]);
-
-  async function pay(event: React.FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setPayment(null);
+type PaymentMethod = "EMOLA" | "BCI";
+type PaymentState = {
+  reference: string;
+  status: string;
+  message?: string | null;
+  method: PaymentMethod;
+  amount: number;
+  plan?: string;
+  promoEndsAt?: string | null;
+  landingPageBonus?: boolean;
+};
+export function PublicHome({ signedIn = false }: { signedIn?: boolean }) {
+  const [selected, setSelected] = useState<PlanKey>("growth"),
+    [open, setOpen] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [payment, setPayment] = useState<PaymentState | null>(null),
+    [checking, setChecking] = useState(signedIn),
+    [renew, setRenew] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    company: "",
+    method: "EMOLA" as PaymentMethod,
+  });
+  const plan = NEXSELL_PLANS.find((p) => p.key === selected)!;
+  async function refresh() {
     try {
-      const response = await fetch("/api/billing/checkout", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({...form,plan:selectedPlan}),
-      });
-      const payload = await response.json() as PaymentState & { error?:string; requestRecorded?:boolean };
-      if (payload.reference && payload.status) setPayment(payload);
-      if (!response.ok) throw new Error(payload.error || "Não foi possível iniciar o pagamento.");
-      toast.success("Pedido criado. Transfira e envie o comprovativo.");
-    } catch (error:unknown) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível iniciar o pagamento.");
+      const r = await fetch("/api/billing/status", { cache: "no-store" }),
+        j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      setPayment(j.payment ?? null);
+      setError("");
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Não foi possível consultar o pagamento.",
+      );
     } finally {
-      setSaving(false);
+      setChecking(false);
     }
   }
-
-  return <main className="nex-grid relative min-h-screen overflow-hidden bg-[#07111F] text-white">
-    <Toaster position="top-right" richColors/>
-    <div className="pointer-events-none absolute inset-x-0 top-0 h-[720px] bg-cover bg-center opacity-[.14] mix-blend-screen" style={{backgroundImage:"url('/og.png')"}}/>
-    <div className="relative mx-auto max-w-7xl px-6 py-6">
-      <header className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#39E675] text-[#07111F]"><Zap size={19} fill="currentColor"/></div>
-          <div><div className="text-[19px] font-black tracking-[-.04em]">Nex<span className="text-[#39E675]">Sell</span></div><div className="text-[9px] uppercase tracking-[.18em] text-white/40">Next generation sales</div></div>
-        </div>
-        <a href="/login" className="rounded-xl border border-white/15 px-4 py-2.5 text-xs font-extrabold hover:bg-white/5">Entrar no CRM</a>
+  useEffect(() => {
+    if (!signedIn) return;
+    const q = new URLSearchParams(location.search).get("plan");
+    if (["starter", "growth", "scale"].includes(q ?? "")) {
+      setSelected(q as PlanKey);
+      setOpen(true);
+    }
+    refresh();
+    const t = setInterval(refresh, 20000);
+    return () => clearInterval(t);
+  }, [signedIn]);
+  function choose(key: PlanKey) {
+    if (!signedIn) {
+      location.href = "/login?mode=signup&plan=" + key;
+      return;
+    }
+    setSelected(key);
+    setOpen(true);
+    setError("");
+  }
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/billing/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, plan: selected }),
+        }),
+        j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      setPayment(j);
+      setRenew(false);
+      setOpen(false);
+      toast.success("Pedido criado. Consulte os dados da transferência.");
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Não foi possível criar o pedido.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="nx-public">
+      <Toaster richColors />
+      <header>
+        <Brand />
+        <nav>
+          {!signedIn && (
+            <a className="nx-hide-mobile" href="#planos">
+              Pacotes
+            </a>
+          )}
+          {signedIn ? (
+            <>
+              <a href="/">Área de trabalho</a>
+              <form action="/api/auth/logout" method="post">
+                <button aria-label="Terminar sessão">
+                  <LogOut size={20} />
+                </button>
+              </form>
+            </>
+          ) : (
+            <a className="nx-button nx-secondary" href="/login">
+              Entrar <ArrowUpRight size={16} />
+            </a>
+          )}
+        </nav>
       </header>
-
-      <section className="mx-auto max-w-4xl py-16 text-center sm:py-24">
-        {signedIn&&<div className="mb-5 inline-flex items-center gap-2 rounded-xl border border-[#F6C945]/20 bg-[#3D3218] px-3 py-2 text-xs font-bold text-[#F6C945]"><LockKeyhole size={14}/> Esta conta ainda não tem uma subscrição ativa</div>}
-        <div className="mx-auto mb-7 flex w-fit items-center gap-2 rounded-full border border-[#39E675]/25 bg-[#39E675]/10 px-3 py-2 text-xs font-bold text-[#39E675]"><Sparkles size={14}/> CRM + WhatsApp + IA + n8n</div>
-        <h1 className="text-5xl font-black leading-[.96] tracking-[-.06em] sm:text-7xl">Transforme conversas em <span className="text-[#39E675]">vendas previsíveis.</span></h1>
-        <p className="mx-auto mt-7 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">Escolha a capacidade certa para começar. Todos os planos organizam os leads, aceleram o WhatsApp e mostram onde agir para fechar mais negócios.</p>
-        <div className="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-3 text-sm text-white/65">
-          {["Sem taxa de configuração","Ativação após confirmação","Cancele quando quiser"].map(x=><span key={x} className="flex items-center gap-2"><Check size={16} className="text-[#39E675]"/>{x}</span>)}
+      {signedIn ? (
+        <section className="py-10">
+          <div className="nx-heading">
+            <div>
+              <p className="nx-eyebrow">Conta e subscrição</p>
+              <h1>{payment ? "O seu pagamento." : "Escolha como começar."}</h1>
+              <p className="nx-description">
+                O acesso é activado depois de a equipa conferir a transferência.
+              </p>
+            </div>
+            <Action secondary onClick={refresh} busy={checking}>
+              <RefreshCw size={16} /> Actualizar
+            </Action>
+          </div>
+          {error && (
+            <p role="alert" className="nx-error mb-5">
+              {error}
+            </p>
+          )}
+          {checking ? (
+            <p role="status" className="nx-loading">
+              A consultar a subscrição…
+            </p>
+          ) : payment ? (
+            <>
+              <PaymentResult payment={payment} onChange={setPayment} />
+              {payment.status === "paid" && (
+                <Action
+                  secondary
+                  className="mt-6"
+                  onClick={() => setRenew(!renew)}
+                >
+                  {renew ? "Fechar pacotes" : "Renovar ou mudar de pacote"}{" "}
+                  <ArrowRight size={16} />
+                </Action>
+              )}
+            </>
+          ) : (
+            <p className="nx-notice">
+              Ainda não tem um pedido. Escolha um dos pacotes abaixo para ver os
+              dados de transferência.
+            </p>
+          )}
+        </section>
+      ) : (
+        <section className="nx-hero">
+          <div>
+            <p className="nx-eyebrow">
+              Um espaço de vendas. Feito para Moçambique.
+            </p>
+            <h1>
+              As conversas
+              <br />
+              continuam.
+              <br />
+              <span>As vendas avançam.</span>
+            </h1>
+            <p className="nx-description">
+              Saiba quem contactar, prepare os seus agentes e acompanhe cada
+              oportunidade até ao pagamento.
+            </p>
+            <a className="nx-button" href="#planos">
+              Encontrar o meu pacote <ArrowRight size={17} />
+            </a>
+            <p className="mt-5 text-sm text-[#A0ADBF]">
+              Subscrição em meticais · e-Mola ou BCI
+            </p>
+          </div>
+          <div className="nx-editorial">
+            {[
+              [
+                Users,
+                "01",
+                "Cada contacto, com contexto.",
+                "Organize contactos e próximos passos num funil que toda a equipa compreende.",
+              ],
+              [
+                MessageCircle,
+                "02",
+                "Agentes que conhecem a empresa.",
+                "Defina o comportamento, associe conhecimento e catálogo e teste antes de publicar.",
+              ],
+              [
+                Workflow,
+                "03",
+                "Uma operação que acompanha as vendas.",
+                "Nos pacotes compatíveis, ligue o WhatsApp e os fluxos n8n, com encaminhamento humano.",
+              ],
+            ].map(([Icon, n, title, desc]) => {
+              const I = Icon as typeof Users;
+              return (
+                <article key={String(n)}>
+                  <I size={25} />
+                  <div>
+                    <span className="nx-step">{String(n)}</span>
+                    <h2>{String(title)}</h2>
+                    <p>{String(desc)}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {(!signedIn || !payment || renew) && (
+        <section id="planos" className="scroll-mt-8">
+          <PromotionBanner />
+          <p className="nx-eyebrow">Capacidade para a sua empresa</p>
+          <h2 className="text-3xl tracking-tight">Comece com o que precisa.</h2>
+          <p className="nx-description">
+            Compare os limites. Mude de pacote quando a operação crescer.
+          </p>
+          <div className="nx-plans">
+            {NEXSELL_PLANS.map((item) => {
+              const limit = PLAN_ACCESS[item.key].limits;
+              return (
+                <article
+                  className={"nx-plan " + (item.featured ? "featured" : "")}
+                  key={item.key}
+                >
+                  <h3>{item.name}</h3>
+                  <p className="nx-label mt-3">{item.audience}</p>
+                  <p className="nx-price">
+                    {money(item.monthlyAmount)} <small>/ mês</small>
+                  </p>
+                  <p className="nx-label">
+                    {limit.agents} agente{limit.agents === 1 ? "" : "s"} de IA ·{" "}
+                    {limit.monthlyAgentMessages.toLocaleString("pt-MZ")}{" "}
+                    respostas/mês
+                  </p>
+                  <ul>
+                    <li>
+                      <Check size={16} />
+                      {limit.users} utilizadores e{" "}
+                      {limit.contacts.toLocaleString("pt-MZ")} contactos
+                    </li>
+                    <li>
+                      <Check size={16} />
+                      {limit.knowledgeResources} recursos e {limit.catalogItems}{" "}
+                      itens de catálogo
+                    </li>
+                    <li>
+                      <Check size={16} />
+                      Até {limit.activeAutomations} automações activas
+                    </li>
+                    <li>
+                      <Check size={16} />
+                      CRM, funil e testes de agentes
+                    </li>
+                    {item.key !== "starter" && (
+                      <>
+                        <li>
+                          <Check size={16} />
+                          WhatsApp e fluxos n8n
+                        </li>
+                        <li>
+                          <Check size={16} />
+                          Propostas, pagamentos e relatórios
+                        </li>
+                      </>
+                    )}
+                    {item.key === "scale" && (
+                      <li>
+                        <Check size={16} />
+                        Campanhas e gestão avançada de equipa
+                      </li>
+                    )}
+                  </ul>
+                  <Action
+                    secondary={!item.featured}
+                    onClick={() => choose(item.key)}
+                  >
+                    Escolher {item.name}
+                    <ArrowRight size={16} />
+                  </Action>
+                </article>
+              );
+            })}
+          </div>
+          <p className="nx-label">
+            Os testes e as respostas de agentes partilham a franquia mensal. O
+            Starter permite configurar e testar o agente; a ligação ao WhatsApp
+            começa no Growth.
+          </p>
+          <div className="grid gap-8 py-12 md:grid-cols-3">
+            {[
+              [
+                "01",
+                "Escolha o pacote",
+                "Crie a conta e consulte os dados para pagamento.",
+              ],
+              [
+                "02",
+                "Transfira e envie",
+                "Indique a referência e anexe o comprovativo no seu pedido.",
+              ],
+              [
+                "03",
+                "Aguarde a aprovação",
+                "A equipa confirma a entrada do valor e activa a sua subscrição.",
+              ],
+            ].map(([n, t, d]) => (
+              <div key={n}>
+                <p className="nx-step">{n}</p>
+                <h3 className="text-lg mt-3 mb-3">{t}</h3>
+                <p className="nx-description">{d}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <footer className="nx-footer">
+        <span>NexSell · Next generation sales</span>
+        <a href="https://wa.me/258833837871" target="_blank" rel="noreferrer">
+          Falar com a equipa <ArrowUpRight className="inline" size={15} />
+        </a>
+      </footer>
+      {open && (
+        <Modal
+          onClose={() => setOpen(false)}
+          title={"Subscrever " + plan.name}
+          description={
+            money(plan.monthlyAmount) +
+            " por mês. O valor será confirmado pela equipa."
+          }
+        >
+          <form className="nx-form" onSubmit={submit}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Nome completo">
+                <input
+                  required
+                  minLength={2}
+                  autoComplete="name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </Field>
+              <Field label="Empresa">
+                <input
+                  autoComplete="organization"
+                  value={form.company}
+                  onChange={(e) =>
+                    setForm({ ...form, company: e.target.value })
+                  }
+                />
+              </Field>
+            </div>
+            <Field label="O seu WhatsApp">
+              <input
+                required
+                type="tel"
+                minLength={9}
+                autoComplete="tel"
+                placeholder="8X XXX XXXX"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </Field>
+            <Field label="Método de transferência">
+              <select
+                value={form.method}
+                onChange={(e) =>
+                  setForm({ ...form, method: e.target.value as PaymentMethod })
+                }
+              >
+                <option value="EMOLA">e-Mola</option>
+                <option value="BCI">Transferência BCI</option>
+              </select>
+            </Field>
+            <p className="nx-label">
+              O pedido fica associado ao e-mail da sessão actual. Não envie o
+              seu PIN ou palavra-passe.
+            </p>
+            {error && (
+              <p className="nx-error" role="alert">
+                {error}
+              </p>
+            )}
+            <Action type="submit" busy={busy}>
+              Ver dados para transferir <ArrowRight size={16} />
+            </Action>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+function PaymentResult({
+  payment,
+  onChange,
+}: {
+  payment: PaymentState;
+  onChange: (p: PaymentState) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null),
+    [transaction, setTransaction] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const detail = TRANSFER_DETAILS[payment.method] ?? TRANSFER_DETAILS.EMOLA;
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      setError("O comprovativo deve ter no máximo 3 MB.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const data = new FormData();
+      data.set("file", file);
+      data.set("reference", payment.reference);
+      data.set("transaction", transaction.trim());
+      const r = await fetch("/api/billing/proof", {
+          method: "POST",
+          body: data,
+        }),
+        j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      onChange({ ...payment, status: "under_review", message: null });
+      toast.success("Comprovativo enviado. Aguarde a análise.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível enviar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (payment.status === "paid")
+    return (
+      <div className="nx-success">
+        <FileCheck size={28} />
+        <h2 className="text-2xl mt-4">Pagamento aprovado.</h2>
+        <p className="mt-3">
+          A transferência foi confirmada. Consulte o estado actual da subscrição
+          na área de trabalho.
+        </p>
+        {payment.landingPageBonus && (
+          <p className="mt-3 font-semibold">
+            Tem direito à landing page grátis. A criação será combinada com a
+            equipa.
+          </p>
+        )}
+        <a className="nx-button mt-5" href="/">
+          Abrir o NexSell <ArrowRight size={16} />
+        </a>
+        <p className="mt-4 text-sm">
+          Pode renovar no botão abaixo. Se precisar de ajuda,{" "}
+          <a className="underline" href="https://wa.me/258833837871">
+            contacte a equipa
+          </a>
+          .
+        </p>
+      </div>
+    );
+  return (
+    <div className="grid gap-7 lg:grid-cols-2">
+      <section className="nx-proof-detail">
+        <div className="nx-actions justify-between">
+          <p className="nx-eyebrow">Dados para transferência</p>
+          <Status value={payment.status} />
         </div>
+        <h2 className="text-3xl mt-3">{money(payment.amount)}</h2>
+        <p className="nx-label mt-2">
+          {payment.plan ?? "Subscrição NexSell"} · {detail.label}
+        </p>
+        <dl>
+          <div>
+            <dt>Beneficiário</dt>
+            <dd>{detail.holder}</dd>
+          </div>
+          {detail.fields.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>
+                <strong>{value}</strong>
+                <button
+                  aria-label={"Copiar " + label}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(value);
+                      toast.success("Copiado.");
+                    } catch {
+                      toast.error("Seleccione o número para copiar.");
+                    }
+                  }}
+                >
+                  <Copy size={16} />
+                </button>
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="nx-label mt-6">
+          Confirme o beneficiário no aplicativo antes de transferir.
+        </p>
       </section>
-
-      <section className="pb-20">
-        <div className="mb-7 text-center">
-          <p className="text-xs font-black uppercase tracking-[.16em] text-[#39E675]">Oferta de lançamento</p>
-          <h2 className="mt-2 text-3xl font-black tracking-tight">Um plano para cada fase da empresa</h2>
-          <p className="mt-2 text-sm text-[#7E8796]">Configuração inicial incluída em todos os planos.</p>
-        </div>
-        <div className="grid items-stretch gap-5 lg:grid-cols-3">
-          {NEXSELL_PLANS.map(item=><article key={item.key} className={`relative flex flex-col rounded-[28px] border p-6 shadow-2xl ${item.featured?"border-[#39E675] bg-[#111B2A] shadow-[#39E675]/10 lg:-translate-y-3":"border-[#233044] bg-[#0D1827]"}`}>
-            {item.featured&&<span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#39E675] px-4 py-1.5 text-[10px] font-black uppercase tracking-[.1em] text-[#07111F]">Mais escolhido</span>}
-            <p className={`text-[10px] font-black uppercase tracking-[.14em] ${item.featured?"text-[#39E675]":"text-[#6E9CFF]"}`}>{item.badge}</p>
-            <h3 className="mt-3 text-2xl font-black">{item.name}</h3>
-            <p className="mt-2 min-h-10 text-xs leading-5 text-[#7E8796]">{item.audience}</p>
-            <p className="mt-6 text-4xl font-black tracking-tight">{money(item.monthlyAmount)} MT<span className="text-xs font-semibold text-[#7E8796]"> / mês</span></p>
-            <div className="my-7 flex-1 space-y-3">{item.features.map(feature=><p key={feature} className="flex items-start gap-2 text-xs leading-5 text-white/70"><Check size={15} className="mt-0.5 shrink-0 text-[#39E675]"/>{feature}</p>)}</div>
-            <button onClick={()=>choosePlan(item.key)} className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-extrabold ${item.featured?"bg-[#39E675] text-[#07111F] hover:bg-[#51EE85]":"border border-[#397BFF]/40 bg-[#142C55] text-[#8FB1FF] hover:bg-[#19386A]"}`}>Escolher {item.name} <ArrowRight size={16}/></button>
-          </article>)}
-        </div>
-        <div className="mx-auto mt-8 grid max-w-3xl gap-4 rounded-2xl border border-[#233044] bg-[#111B2A] p-5 sm:grid-cols-2">
-          <div><p className="flex items-center gap-2 text-xs font-extrabold"><ShieldCheck size={16} className="text-[#39E675]"/> Pagamento protegido</p><p className="mt-2 text-xs leading-5 text-[#7E8796]">Transfira, envie o comprovativo e aguarde a conferência pela nossa equipa. Nunca pedimos o seu PIN.</p></div>
-          <div><p className="flex items-center gap-2 text-xs font-extrabold"><Smartphone size={16} className="text-[#39E675]"/> e-Mola e transferência BCI</p><p className="mt-2 text-xs leading-5 text-[#7E8796]">Os dados do beneficiário aparecem antes da transferência. O acesso depende de aprovação manual.</p></div>
-        </div>
+      <section>
+        <p className="nx-label break-all mb-4">Pedido {payment.reference}</p>
+        {payment.promoEndsAt && (
+          <div className="nx-notice mb-5">
+            <p>
+              Landing page: a transferência deve ocorrer antes de{" "}
+              <strong>{date(payment.promoEndsAt)}</strong> (Maputo). A equipa
+              verifica a data; a aprovação pode ser posterior.
+            </p>
+          </div>
+        )}
+        {payment.status === "under_review" ? (
+          <div className="nx-panel p-6" role="status">
+            <FileCheck className="text-[#39E675]" size={28} />
+            <h2 className="mt-4 text-xl">Comprovativo em análise.</h2>
+            <p className="nx-description">
+              Pode fechar esta página. Ao voltar, verá o estado actualizado. O
+              envio do comprovativo não activa a subscrição.
+            </p>
+          </div>
+        ) : ["pending", "rejected"].includes(payment.status) ? (
+          <form onSubmit={send} className="nx-form">
+            {payment.status === "rejected" && (
+              <p role="alert" className="nx-error">
+                Motivo da recusa:{" "}
+                {payment.message || "Contacte a equipa para esclarecer."} Pode
+                enviar um novo comprovativo.
+              </p>
+            )}
+            <Field
+              label="Referência da transferência"
+              hint="Copie o código da transacção que aparece no recibo."
+            >
+              <input
+                required
+                minLength={3}
+                maxLength={100}
+                value={transaction}
+                onChange={(e) => setTransaction(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Comprovativo"
+              hint="PDF, JPG ou PNG. Máximo 3 MB. Só a equipa de análise tem acesso."
+            >
+              <input
+                required
+                className="nx-upload"
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </Field>
+            {error && (
+              <p role="alert" className="nx-error">
+                {error}
+              </p>
+            )}
+            <Action type="submit" busy={busy}>
+              Enviar comprovativo <ArrowRight size={16} />
+            </Action>
+            <p className="nx-label">
+              A aprovação depende da conferência da entrada do valor.
+            </p>
+          </form>
+        ) : (
+          <p className="nx-notice">
+            Este pedido está encerrado. Contacte a equipa para continuar.
+          </p>
+        )}
       </section>
     </div>
-
-    {checkout&&<div className="fixed inset-0 z-50 grid place-items-center bg-[#07111F]/80 p-4 backdrop-blur" onMouseDown={()=>setCheckout(false)}>
-      <section onMouseDown={event=>event.stopPropagation()} className="scrollbar-none max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-[#233044] bg-[#111B2A] p-6 shadow-2xl">
-        <div className="flex items-start justify-between">
-          <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#39E675]">Subscrição segura</p><h2 className="mt-1 text-2xl font-black">Plano {plan.name}</h2><p className="mt-1 text-sm font-extrabold text-[#8FB1FF]">{money(plan.monthlyAmount)} MT / mês</p></div>
-          <button aria-label="Fechar" onClick={()=>setCheckout(false)} className="rounded-xl bg-[#1B293A] p-2"><X size={18}/></button>
-        </div>
-
-        {payment ? <PaymentResult payment={payment} onChange={setPayment}/> : <form onSubmit={pay} className="mt-6 grid gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <input required className={inputClass} placeholder="Nome completo" value={form.name} onChange={event=>setForm({...form,name:event.target.value})}/>
-            <input className={inputClass} placeholder="Empresa" value={form.company} onChange={event=>setForm({...form,company:event.target.value})}/>
-          </div>
-          <input required type="email" className={inputClass} placeholder="E-mail de acesso" value={form.email} onChange={event=>setForm({...form,email:event.target.value})}/>
-          <div className="grid grid-cols-2 gap-3">
-            {(["EMOLA","BCI"] as PaymentMethod[]).map(method=><button key={method} type="button" onClick={()=>setForm({...form,method})} className={`rounded-xl border p-3 text-left transition ${form.method===method?"border-[#39E675] bg-[#10291F]":"border-[#233044] bg-[#0C1725]"}`}>
-              <span className="flex items-center gap-2 text-sm font-black"><span className={`h-3 w-3 rounded-full ${method==="BCI"?"bg-[#E63D35]":"bg-[#EE8D25]"}`}/>{methodName(method)}</span>
-              <span className="mt-1 block text-[10px] text-[#7E8796]">Aprovação manual</span>
-            </button>)}
-          </div>
-          <input required inputMode="tel" autoComplete="tel" className={inputClass} placeholder="O seu WhatsApp: 8X XXX XXXX" value={form.phone} onChange={event=>setForm({...form,phone:event.target.value})}/>
-          <div className="rounded-xl bg-[#0C1725] p-4 text-xs leading-5 text-[#7E8796]">Na próxima etapa verá os dados para transferir e enviar o comprovativo. <strong className="text-white/75">Nunca introduza o seu PIN no NexSell.</strong></div>
-          <button disabled={saving} className="flex items-center justify-center gap-2 rounded-xl bg-[#39E675] px-5 py-3.5 text-sm font-extrabold text-[#07111F] disabled:opacity-50">{saving?<LoaderCircle size={17} className="animate-spin"/>:<Smartphone size={17}/>} Ver dados para transferir {money(plan.monthlyAmount)} MT</button>
-        </form>}
-      </section>
-    </div>}
-  </main>;
-}
-
-function PaymentResult({payment,onChange}:{payment:PaymentState;onChange:(p:PaymentState)=>void}) {
- const [file,setFile]=useState<File|null>(null);const [transaction,setTransaction]=useState("");const [busy,setBusy]=useState(false);
- const detail=TRANSFER_DETAILS[payment.method]??TRANSFER_DETAILS.EMOLA;
- async function send(e:React.FormEvent){e.preventDefault();if(!file)return;setBusy(true);try{
- const data=new FormData();data.set("file",file);data.set("reference",payment.reference);data.set("transaction",transaction);
- const r=await fetch("/api/billing/proof",{method:"POST",body:data});const j=await r.json();if(!r.ok)throw new Error(j.error);
- onChange({...payment,status:"under_review",message:null});toast.success("Comprovativo enviado. Aguarde aprovação.");
- }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível enviar.")}finally{setBusy(false)}}
- if(payment.status==="paid")return <div className="mt-6 rounded-2xl bg-[#10291F] p-5"><CircleCheck className="text-[#39E675]"/><h3 className="mt-3 text-xl font-bold">Pagamento aprovado</h3><p className="mt-2">O seu plano está activo.</p><a href="/" className="mt-5 block font-bold text-[#39E675]">Abrir o NexSell →</a></div>;
- return <div className="mt-6 space-y-5 text-sm">
- <div className="rounded-2xl bg-[#0C1725] p-5"><p className="text-[#8FB1FF]">Transferir por {detail.label}</p><p className="mt-2 text-3xl font-black">{money(payment.amount)} MT</p><p className="mt-3">Beneficiário: <strong>{detail.holder}</strong></p>{detail.fields.map(([label,value])=><div key={label} className="mt-4"><p className="text-[#7E8796]">{label}</p><div className="mt-1 flex items-center gap-2"><strong className="break-all">{value}</strong><button className="ml-auto rounded-lg border border-[#233044] px-3 py-2" onClick={async()=>{try{await navigator.clipboard.writeText(value);toast.success("Copiado")}catch{toast.error("Seleccione o número para copiar.")}}}>Copiar</button></div></div>)}<p className="mt-4 text-xs text-[#7E8796]">Confirme o nome do beneficiário no seu aplicativo antes de transferir.</p></div>
- <p className="break-all text-xs text-[#7E8796]">Pedido: {payment.reference}</p>
- {payment.status==="under_review"?<div role="status" className="rounded-xl bg-[#3D3218] p-4 text-[#F6C945]"><strong>Comprovativo em análise</strong><p className="mt-2">Pode fechar esta página. Ao voltar a entrar, verá o estado actualizado. O acesso será activado após aprovação.</p></div>:<form onSubmit={send} className="space-y-4">
- {payment.status==="rejected"&&<p role="alert" className="rounded-xl bg-[#402329] p-4 text-[#FF7A83]">Comprovativo recusado: {payment.message}. Corrija e envie novamente.</p>}
- <label className="block">Referência da transferência<input required minLength={3} maxLength={100} className={inputClass+" mt-2"} value={transaction} onChange={e=>setTransaction(e.target.value)} placeholder="Código da transacção no recibo"/></label>
- <label className="block">Comprovativo — PDF, JPG ou PNG, até 3 MB<input required type="file" accept="application/pdf,image/jpeg,image/png" className="mt-2 block w-full rounded-xl border border-[#233044] p-3" onChange={e=>setFile(e.target.files?.[0]??null)}/></label>
- <button disabled={busy} className="w-full rounded-xl bg-[#39E675] px-4 py-3 font-bold text-[#07111F] disabled:opacity-50">{busy?"A enviar…":"Enviar comprovativo"}</button><p className="text-xs text-[#7E8796]">O envio não confirma o pagamento. A equipa verifica a entrada do valor e aprova o acesso.</p>
- </form>}
- </div>;
+  );
 }

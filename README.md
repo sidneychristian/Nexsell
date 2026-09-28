@@ -1,63 +1,46 @@
-# NexSell — versão GitHub + Vercel
+> **Actualização:** a opção principal por dispositivo associado (QR/código) está explicada em [WHATSAPP_QR_CODIGO.md](./WHATSAPP_QR_CODIGO.md). O guia Meta permanece para a alternativa oficial.
 
-Plataforma multiempresa para geração de leads, CRM, agentes de IA, automações
-n8n e vendas pelo WhatsApp, preparada para o mercado moçambicano.
-
-## Tecnologias
-
-- Next.js 16 e TypeScript
-- Vercel
-- Supabase: PostgreSQL, autenticação e armazenamento
-- Subscrições por transferência e-Mola/BCI, comprovativo privado e aprovação manual
-- WhatsApp Business Cloud API
-- n8n
-- OpenAI Responses API para os agentes
+# NexSell — GitHub / Vercel
+CRM multiempresa, agentes configuráveis, catálogo, automações e subscrições manuais para empresas em Moçambique. Projecto Next.js existente actualizado, sem reconstruir a aplicação noutra plataforma.
 
 ## Começar
+Leia **[GUIA_PUBLICACAO_E_CONEXOES.md](GUIA_PUBLICACAO_E_CONEXOES.md)** antes de publicar.
+- Código: Next.js 16.2.6, React 19, TypeScript.
+- Dados, autenticação e ficheiros privados: Supabase.
+- IA: GPT-4.1 mini via Responses API, exclusivamente no servidor.
+- Pagamentos: transferência e-Mola/BCI e aprovação administrativa. Sem gateway obrigatório.
+- Entrega: código-fonte, lockfile, esquema completo, migrações incrementais, testes e documentação. Não contém credenciais nem dependências instaladas.
 
-1. Leia [GUIA_PUBLICACAO_E_CONEXOES.md](./GUIA_PUBLICACAO_E_CONEXOES.md).
-2. Crie o projeto no Supabase.
-3. Execute [supabase/schema.sql](./supabase/schema.sql) no SQL Editor.
-4. Copie `.env.example` para `.env.local` e preencha os valores.
-5. Execute `npm install` e `npm run dev`.
-6. Envie o projeto para o GitHub e importe-o na Vercel.
+```bash
+npm ci
+cp .env.example .env.local
+# Preencher as variáveis locais, sem publicar este ficheiro.
+npm run dev
+```
 
-Nunca envie `SUPABASE_SERVICE_ROLE_KEY`, chaves da Pagar, tokens do WhatsApp ou
-segredos do n8n para o GitHub.
+```bash
+npm test
+npm run build
+```
 
-## Endereços principais
+O build limpa automaticamente a rota temporária de revisão visual. Os dados de teste ficam exclusivamente em `tests/`; não há população automática de contactos ou estatísticas no admin.
 
-- Site e CRM: `/`
-- Entrada/criação de conta: `/login`
-- Administração: `/admin`
-- Entrada de leads do n8n: `/api/webhooks/leads`
-- Entrada de mensagens para agentes: `/api/webhooks/agent-message`
-- Retorno do processamento de conhecimento: `/api/webhooks/knowledge`
-- Envio de comprovativos: `/api/billing/proof` (autenticado)
-- Webhook da Pagar desactivado nesta versão
+## Rotas
+| Área | Endereço |
+|---|---|
+| Página pública / área de trabalho | / |
+| Entrada, criação de conta, recuperação | /login |
+| Pagamentos e renovação | /billing |
+| Administração da plataforma | /admin |
+| Retorno da autenticação | /auth/callback |
 
-## Planos e permissões
+Produção configurada: https://nexsellmz.vercel.app
 
-O administrador escolhe ou altera o pacote de cada cliente em `/admin`. O
-NexSell aplica os limites no painel e nas rotas do servidor. Quando uma função
-não pertence ao plano atual, o cliente recebe uma indicação para subir o pacote
-e pode contactar a equipa pelo WhatsApp definido em
-`NEXT_PUBLIC_SALES_WHATSAPP`.
+## Documentação
+- [Ligação WhatsApp simples: Meta, código/QR e activação](WHATSAPP_LIGACAO_SIMPLES.md)
+- [Publicação, variáveis, admin e integrações](GUIA_PUBLICACAO_E_CONEXOES.md)
+- [Alterações, verificação e limites conhecidos](ENTREGA_E_VERIFICACAO.md)
+- [Esquema para instalação nova](supabase/schema.sql)
+- [Migrações para base existente](supabase/migrations)
 
-## Agentes por empresa
-
-Cada empresa pode criar os próprios agentes no menu **Agentes**, ligar apenas
-os seus recursos de conhecimento e itens do catálogo, testar antes de publicar
-e encaminhar situações sensíveis para **Aprovações**. O Starter não inclui
-agentes; o Growth permite 1 agente e 1.000 respostas/mês; o Scale permite 5
-agentes e 10.000 respostas/mês. Os limites também são aplicados no servidor.
-
-Para uma instalação Supabase já existente, execute apenas
-`supabase/migrations/20260903_agents.sql`. Numa instalação nova, execute o
-`supabase/schema.sql` completo.
-
-## Actualização de 9 de setembro de 2026
-
-Instalação nova: execute o schema completo. Base existente: aplique também `supabase/migrations/20260909_manual_payments.sql`.
-
-O envio do comprovativo não activa o plano; a aprovação é exclusiva do admin. O registo manual de clientes mantém a escolha de pacote e os limites no servidor.
+As migrações e o código ainda precisam ser aplicados na sua conta. Esta entrega não publica nem altera a base de produção automaticamente.

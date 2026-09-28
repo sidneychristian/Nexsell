@@ -1,3 +1,4 @@
+import "server-only";
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type NexSellUser = {
@@ -20,9 +21,14 @@ export function isPlatformAdmin(email: string) {
 export async function getCurrentUser(): Promise<NexSellUser | null> {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.email) return null;
-    const fullName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.email || !user.email_confirmed_at) return null;
+    const fullName =
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : null;
     return {
       id: user.id,
       email: normalizeEmail(user.email),

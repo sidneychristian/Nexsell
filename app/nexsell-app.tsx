@@ -1,240 +1,593 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
-  Activity, ArrowRight, BarChart3, Bell, Bot, BriefcaseBusiness, CalendarClock, Check, CheckCircle2,
-  ChevronDown, ChevronRight, CircleDollarSign, Clock3, CreditCard, FileText, Filter, Flame, Gauge,
-  GitBranch, Globe2, LayoutDashboard, LoaderCircle, LockKeyhole, Megaphone, Menu,
-  MessageCircle, MoreHorizontal, Network, Plus, RefreshCw, Search, Send, Settings, ShieldCheck, Sparkles,
-  Target, TrendingUp, UserPlus, Users, WandSparkles, Workflow, X, Zap
+  LayoutDashboard,
+  Users,
+  GitBranch,
+  MessageCircle,
+  Workflow,
+  Bot,
+  FileText,
+  Package,
+  ShieldCheck,
+  BarChart3,
+  Network,
+  BriefcaseBusiness,
+  Megaphone,
+  Menu,
+  LogOut,
+  LockKeyhole,
+  LoaderCircle,
+  ArrowRight,
+  Plus,
+  Search,
+  ChevronRight,
+  Check,
+  ArrowUpRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast, Toaster } from "sonner";
-import { AdminView, type BillingPayment, type Customer } from "./admin-view";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "../components/ui/sheet";
+import {
+  Action,
+  Brand,
+  Heading,
+  Status,
+  EmptyState,
+  Upgrade,
+  money,
+} from "../components/nexsell-ui";
+import { AdminView } from "./admin-view";
 import { AgentsWorkspace } from "./agents-view";
 import { PublicHome } from "./public-home";
-import { NEXSELL_PLANS, PLAN_ACCESS, VIEW_FEATURES, minimumPlanFor, normalizePlanKey, planHasFeature, type PlanFeature } from "./plans";
-
-type User = { displayName: string; email: string; fullName: string | null } | null;
-type Lead = { id:string; name:string; company:string; phone:string; email:string; source:string; interest:string; stage:string; score:number; temperature:string; owner:string; value:number; location:string; nextAction:string; consent:boolean; updatedAt:string };
-type Automation = { id:string; name:string; trigger:string; action:string; status:string; runs:number; successRate:number; lastRunAt:string|null };
-type Proposal = { id:string; leadId:string; code:string; title:string; amount:number; status:string; paymentOption:string; dueDate:string };
-type Payment = { id:string; provider:string; amount:number; reference:string; status:string; createdAt:string };
-type Campaign = { id:string; name:string; channel:string; status:string; spend:number; leads:number; sales:number; revenue:number };
-type Integration = { id:string; provider:string; label:string; status:string; lastSyncAt:string|null };
-type Task = { id:string; leadId:string|null; title:string; dueAt:string; status:string; priority:string };
-type ActivityRow = { id:string; leadId:string; body:string; status:string; createdAt:string };
-type Subscription = { plan:string; monthlyAmount:number; status:string } | null;
-type Snapshot = { organization:{name:string}|null; leads:Lead[]; activities:ActivityRow[]; tasks:Task[]; automations:Automation[]; proposals:Proposal[]; payments:Payment[]; campaigns:Campaign[]; integrations:Integration[]; subscription:Subscription; customers:Customer[]; billingPayments:BillingPayment[]; currentRole:string; isPlatformAdmin:boolean; planKey:string; planLimits:{users:number;contacts:number;activeAutomations:number;agents:number;knowledgeResources:number;catalogItems:number;monthlyAgentMessages:number} };
-type PostAction = Record<string, unknown>;
-type PostFn = (body:PostAction) => Promise<boolean>;
-type MenuItem = { id:string; label:string; icon:LucideIcon; badge?:string; group:string };
-
-const money = (n:number) => new Intl.NumberFormat("pt-MZ", { style:"currency", currency:"MZN", maximumFractionDigits:0 }).format(n).replace("MZN", "MT");
-const stages = [
-  { id:"novo", label:"Novos", color:"#397BFF" }, { id:"contactado", label:"Contactados", color:"#8E5BFF" },
-  { id:"qualificado", label:"Qualificados", color:"#F6C945" }, { id:"proposta", label:"Proposta", color:"#2F78FF" },
-  { id:"negociacao", label:"Negociação", color:"#F6C945" }, { id:"ganho", label:"Ganhos", color:"#39E675" },
+import {
+  PLAN_ACCESS,
+  VIEW_FEATURES,
+  normalizePlanKey,
+  planHasFeature,
+  minimumPlanFor,
+} from "./plans";
+import {
+  ContactList,
+  Pipeline,
+  InboxView,
+  Automations,
+  Revenue,
+  Reports,
+  Connections,
+  Team,
+  Campaigns,
+  LeadEditor,
+  LeadDetail,
+} from "./workspace-views";
+import type { User, Snapshot, PostFn } from "./workspace-types";
+const menu: { id: string; label: string; icon: LucideIcon; group: string }[] = [
+  {
+    id: "dashboard",
+    label: "Visão geral",
+    icon: LayoutDashboard,
+    group: "Trabalho",
+  },
+  { id: "leads", label: "Contactos", icon: Users, group: "Trabalho" },
+  {
+    id: "pipeline",
+    label: "Funil comercial",
+    icon: GitBranch,
+    group: "Trabalho",
+  },
+  { id: "inbox", label: "Conversas", icon: MessageCircle, group: "Trabalho" },
+  { id: "agents", label: "Agentes de IA", icon: Bot, group: "Operação" },
+  { id: "knowledge", label: "Conhecimento", icon: FileText, group: "Operação" },
+  { id: "catalog", label: "Catálogo", icon: Package, group: "Operação" },
+  {
+    id: "approvals",
+    label: "Atendimento humano",
+    icon: ShieldCheck,
+    group: "Operação",
+  },
+  { id: "automations", label: "Automações", icon: Workflow, group: "Operação" },
+  {
+    id: "proposals",
+    label: "Propostas e pagamentos",
+    icon: FileText,
+    group: "Gestão",
+  },
+  { id: "campaigns", label: "Campanhas", icon: Megaphone, group: "Gestão" },
+  { id: "reports", label: "Relatórios", icon: BarChart3, group: "Gestão" },
+  { id: "connections", label: "Conexões", icon: Network, group: "Gestão" },
+  {
+    id: "team",
+    label: "Equipa e subscrição",
+    icon: BriefcaseBusiness,
+    group: "Gestão",
+  },
 ];
-const menu = [
-  { id:"dashboard", label:"Visão geral", icon:LayoutDashboard, group:"Trabalho" },
-  { id:"leads", label:"Contactos", icon:Users, group:"Trabalho" },
-  { id:"pipeline", label:"Funil de vendas", icon:GitBranch, group:"Vendas" },
-  { id:"inbox", label:"Conversas", icon:MessageCircle, badge:"3", group:"Vendas" },
-  { id:"proposals", label:"Propostas e cobranças", icon:FileText, group:"Vendas" },
-  { id:"automations", label:"Automações", icon:Workflow, group:"Crescimento" },
-  { id:"agents", label:"Agentes", icon:Bot, group:"Crescimento" },
-  { id:"knowledge", label:"Conhecimento", icon:FileText, group:"Crescimento" },
-  { id:"catalog", label:"Catálogo", icon:BriefcaseBusiness, group:"Crescimento" },
-  { id:"approvals", label:"Aprovações", icon:ShieldCheck, group:"Crescimento" },
-  { id:"campaigns", label:"Campanhas", icon:Megaphone, group:"Crescimento" },
-  { id:"reports", label:"Relatórios", icon:BarChart3, group:"Crescimento" },
-  { id:"connections", label:"Conexões", icon:Network, group:"Gestão" },
-  { id:"team", label:"Equipa e plano", icon:BriefcaseBusiness, group:"Gestão" },
-];
-  const initialSnapshot:Snapshot = { organization:{name:"Minha empresa"}, leads:[], activities:[], tasks:[], automations:[], proposals:[], payments:[], campaigns:[], integrations:[], subscription:null, customers:[], billingPayments:[], currentRole:"", isPlatformAdmin:false, planKey:"starter", planLimits:PLAN_ACCESS.starter.limits };
-
-function Brand({ compact=false }:{compact?:boolean}) {
-  return <div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-[10px] bg-[#39E675] text-[#07111F]"><Zap size={18} fill="currentColor"/></div>{!compact&&<div><div className="text-[19px] font-extrabold tracking-[-.035em] text-white">Nex<span className="text-[#39E675]">Sell</span></div><div className="text-[9px] font-medium uppercase tracking-[.16em] text-white/40">Sales workspace</div></div>}</div>;
-}
-
-function SignIn() {
-  return <PublicHome/>;
-}
-
-function SectionTitle({ eyebrow, title, description, action }:{eyebrow:string;title:string;description:string;action?:React.ReactNode}) {
-  return <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-[11px] font-extrabold uppercase tracking-[.16em] text-[#7E8796]">{eyebrow}</p><h1 className="mt-1 text-3xl font-black tracking-[-.04em] text-[#F7F9FC]">{title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#7E8796]">{description}</p></div>{action}</div>;
-}
-function Button({ children, onClick, secondary=false, disabled=false, type="button" }:{children:React.ReactNode;onClick?:()=>void;secondary?:boolean;disabled?:boolean;type?:"button"|"submit"}) {
-  return <button type={type} onClick={onClick} disabled={disabled} className={`nexsell-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:opacity-50 ${secondary?"border border-[#DCE3EA] bg-white text-[#344054] hover:border-[#B8C4D1] hover:bg-[#F8FAFC]":"bg-[#0D6B4F] text-white hover:bg-[#095840]"}`}>{children}</button>;
-}
-function Pill({ children, tone="gray" }:{children:React.ReactNode;tone?:string}) {
-  const colors:Record<string,string>={green:"bg-[#153B2A] text-[#39E675]",amber:"bg-[#3D3218] text-[#F6C945]",red:"bg-[#402329] text-[#FF7A83]",blue:"bg-[#142C55] text-[#6E9CFF]",purple:"bg-[#2D2450] text-[#B698FF]",gray:"bg-[#1C2939] text-[#7E8796]"};
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold ${colors[tone]||colors.gray}`}>{children}</span>;
-}
-function Panel({ children, className="" }:{children:React.ReactNode;className?:string}) { return <div className={`nexsell-panel rounded-2xl border border-[#E3E8EF] bg-white ${className}`}>{children}</div>; }
-
-export function NexSellApp({ user, initialView="dashboard" }:{user:User;initialView?:string}) {
-  const [active,setActive]=useState(initialView); const [data,setData]=useState<Snapshot>(initialSnapshot); const [loading,setLoading]=useState(true);
-  const [mobile,setMobile]=useState(false); const [leadModal,setLeadModal]=useState(false); const [search,setSearch]=useState("");
-  const [selectedLead,setSelectedLead]=useState<string|null>(null); const [saving,setSaving]=useState(false); const [accessDenied,setAccessDenied]=useState(false);
-  useEffect(()=>{ if(!user) return; fetch("/api/nexsell").then(async r=>{const j=await r.json();if(r.status===403){setAccessDenied(true);return null}if(!r.ok)throw new Error(j.error);return j}).then(j=>{if(j)setData(j)}).catch(()=>toast.error("Não foi possível carregar os dados agora.")).finally(()=>setLoading(false)); },[user]);
-  const post:PostFn=async(body)=>{setSaving(true);try{const r=await fetch("/api/nexsell",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw new Error(j.error||"Ação não concluída");setData(j);return true}catch(error:unknown){toast.error(error instanceof Error?error.message:"Ação não concluída");return false}finally{setSaving(false)}};
-  if(!user) return <SignIn/>;
-  if(accessDenied) return <PublicHome signedIn/>;
-  const nav=(id:string)=>{setActive(id);setMobile(false)};
-  const currentPlanKey=normalizePlanKey(data.subscription?.plan??data.planKey);
-  const hasFeature=(feature:PlanFeature)=>data.isPlatformAdmin||planHasFeature(currentPlanKey,feature);
-  const activeFeature=VIEW_FEATURES[active];
-  const activeLocked=Boolean(activeFeature&&!hasFeature(activeFeature));
-  const visibleMenu=data.isPlatformAdmin?[...menu,{id:"admin",label:"Administração",icon:ShieldCheck,group:"Gestão"}]:menu;
-  const currentPlan=NEXSELL_PLANS.find(plan=>plan.key===currentPlanKey)??NEXSELL_PLANS[0];
-  const leadUsage=Math.min(100,Math.round((data.leads.length/Math.max(1,data.planLimits.contacts))*100));
-  const renderNavigation=(mobileNav=false)=><nav className={mobileNav?"mt-7 space-y-6":"mt-8 flex-1 space-y-6 overflow-y-auto pr-1"}>{["Trabalho","Vendas","Crescimento","Gestão"].map(group=>{const items=visibleMenu.filter(item=>item.group===group);if(!items.length)return null;return <div key={group}><p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.14em] text-white/35">{group}</p><div className="space-y-1">{items.map(item=>{const feature=VIEW_FEATURES[item.id];const locked=Boolean(feature&&!hasFeature(feature));return <NavItem key={item.id} item={item} active={active===item.id} locked={locked} requiredPlan={feature?minimumPlanFor(feature).name:undefined} onClick={()=>nav(item.id)}/>})}</div></div>})}</nav>;
-  return <div className="nexsell-console min-h-screen bg-[#F4F6F8] text-[#101828]">
-    <Toaster position="top-right" richColors/>
-    <aside className="nexsell-sidebar desktop-sidebar fixed inset-y-0 left-0 z-30 flex w-[264px] flex-col border-r border-white/5 bg-[#0B1724] px-4 py-5 text-white">
-      <div className="px-2"><Brand/></div>
-      <button className="mt-6 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[.045] px-3 py-3 text-left"><div className="grid h-8 w-8 place-items-center rounded-lg bg-[#39E675] text-xs font-black text-[#07111F]">{(data.organization?.name||"N").charAt(0)}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{data.organization?.name||"Minha empresa"}</p><p className="mt-0.5 text-[10px] text-white/40">Workspace comercial</p></div><ChevronDown size={14} className="text-white/35"/></button>
-      {renderNavigation()}
-      <div className="mt-4 rounded-xl border border-white/10 bg-white/[.045] p-3.5"><div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-white/45">Plano {currentPlan.name}</p><button onClick={()=>nav("team")} className="text-[10px] font-bold text-[#39E675]">Gerir</button></div><div className="mt-3 flex items-end justify-between"><p className="text-xs font-semibold text-white/75">{data.leads.length.toLocaleString("pt-MZ")} contactos</p><p className="text-[10px] text-white/35">de {data.planLimits.contacts.toLocaleString("pt-MZ")}</p></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[#39E675]" style={{width:`${leadUsage}%`}}/></div></div>
-    </aside>
-    {mobile&&<div className="fixed inset-0 z-50 bg-[#07111F]/45 backdrop-blur-sm lg:hidden" onClick={()=>setMobile(false)}><aside onClick={e=>e.stopPropagation()} className="nexsell-sidebar h-full w-[292px] overflow-y-auto bg-[#0B1724] p-5 text-white"><div className="flex justify-between"><Brand/><button aria-label="Fechar menu" onClick={()=>setMobile(false)} className="rounded-lg border border-white/10 p-2 text-white/60"><X size={18}/></button></div>{renderNavigation(true)}</aside></div>}
-    <div className="lg:pl-[264px]">
-      <header className="nexsell-topbar sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-[#E3E8EF] bg-white/95 px-4 backdrop-blur-xl sm:px-7">
-        <button aria-label="Abrir menu" onClick={()=>setMobile(true)} className="rounded-xl border border-[#E3E8EF] bg-white p-2.5 lg:hidden"><Menu size={19}/></button>
-        <div className="hidden min-w-0 items-center gap-2 md:flex"><span className="max-w-44 truncate text-xs font-semibold text-[#667085]">{data.organization?.name||"Minha empresa"}</span><ChevronRight size={13} className="text-[#98A2B3]"/><span className="text-xs font-bold text-[#101828]">{visibleMenu.find(item=>item.id===active)?.label||"Visão geral"}</span></div>
-        <div className="relative ml-auto hidden w-full max-w-sm md:block"><Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#98A2B3]"/><input aria-label="Pesquisa global" placeholder="Pesquisar no NexSell" className="w-full rounded-xl border border-[#E3E8EF] bg-[#F7F9FB] py-2.5 pl-10 pr-3 text-sm text-[#101828] outline-none placeholder:text-[#98A2B3] focus:border-[#9DB8EA] focus:bg-white"/></div>
-        <div className="flex items-center gap-2 sm:gap-3"><span className="hidden rounded-full border border-[#D8EBDD] bg-[#F0FAF4] px-3 py-1.5 text-[11px] font-bold text-[#19734C] sm:inline-flex">{currentPlan.name}</span><button aria-label="Notificações" className="relative grid h-10 w-10 place-items-center rounded-xl border border-[#E3E8EF] bg-white text-[#667085]"><Bell size={17}/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#0D6B4F]"/></button><form action="/api/auth/logout" method="post"><button className="flex items-center gap-3 rounded-xl border border-[#E3E8EF] bg-white px-2.5 py-2" title="Terminar sessão"><div className="grid h-7 w-7 place-items-center rounded-lg bg-[#0B1724] text-xs font-bold text-white">{user.displayName.charAt(0).toUpperCase()}</div><span className="hidden max-w-28 truncate text-xs font-bold text-[#344054] sm:block">{user.displayName}</span><ChevronDown size={14} className="text-[#98A2B3]"/></button></form></div>
-      </header>
-      <main className="mx-auto min-h-[calc(100vh-72px)] max-w-[1680px] p-4 sm:p-7 lg:p-9">{loading?<Loading/>:<div className="fade-up" key={active}>{activeLocked&&activeFeature?<UpgradeView feature={activeFeature} currentPlan={currentPlanKey}/>:<>{active==="dashboard"&&<Dashboard data={data} go={nav}/>} {active==="leads"&&<Leads data={data} search={search} setSearch={setSearch} openLead={()=>setLeadModal(true)} selectLead={setSelectedLead}/>} {active==="pipeline"&&<Pipeline data={data} post={post}/>} {active==="inbox"&&<InboxView data={data} post={post} saving={saving}/>} {active==="automations"&&<Automations data={data} post={post} saving={saving} canUseN8n={hasFeature("n8n")}/>} {active==="agents"&&<AgentsWorkspace initialTab="agents"/>} {active==="knowledge"&&<AgentsWorkspace initialTab="knowledge"/>} {active==="catalog"&&<AgentsWorkspace initialTab="catalog"/>} {active==="approvals"&&<AgentsWorkspace initialTab="approvals"/>} {active==="proposals"&&<Revenue data={data} post={post} saving={saving}/>} {active==="campaigns"&&<Campaigns data={data}/>} {active==="reports"&&<Reports data={data}/>} {active==="connections"&&<Connections data={data}/>} {active==="team"&&<Team user={user} data={data} canInvite={hasFeature("team")}/>} {active==="admin"&&data.isPlatformAdmin&&<AdminView customers={data.customers} payments={data.billingPayments} post={post} saving={saving}/>}</>}</div>}</main>
+export function NexSellApp({
+  user,
+  initialView = "dashboard",
+}: {
+  user: User;
+  initialView?: string;
+}) {
+  const [active, setActive] = useState(initialView),
+    [data, setData] = useState<Snapshot | null>(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [denied, setDenied] = useState(false),
+    [mobile, setMobile] = useState(false),
+    [leadOpen, setLeadOpen] = useState(false),
+    [leadId, setLeadId] = useState<string | null>(null),
+    [saving, setSaving] = useState(false),
+    [search, setSearch] = useState("");
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    setError("");
+    setLoading(true);
+    try {
+      const r = await fetch("/api/nexsell", { cache: "no-store" }),
+        j = await r.json();
+      if (r.status === 401) {
+        location.href = "/login";
+        return;
+      }
+      if (r.status === 403) {
+        setDenied(true);
+        return;
+      }
+      if (!r.ok) throw new Error(j.error);
+      setData(j);
+      setDenied(false);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Não foi possível carregar os dados.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+  useEffect(() => {
+    refresh();
+    const hash = location.hash.slice(1);
+    if (menu.some((m) => m.id === hash) || hash === "admin") setActive(hash);
+  }, [refresh]);
+  useEffect(() => {
+    const changed = () => {
+      const h = location.hash.slice(1);
+      if (menu.some((m) => m.id === h) || h === "admin") setActive(h);
+    };
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
+  const post: PostFn = async (body) => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/nexsell", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      setData(j);
+      toast.success("Alteração guardada.");
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível guardar.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+  function go(view: string) {
+    setActive(view);
+    location.hash = view;
+    setMobile(false);
+  }
+  if (!user) return <PublicHome />;
+  if (denied) return <PublicHome signedIn />;
+  const plan = normalizePlanKey(data?.subscription?.plan),
+    items = data?.isPlatformAdmin
+      ? [
+          ...menu,
+          {
+            id: "admin",
+            label: "Administração",
+            icon: ShieldCheck,
+            group: "Gestão",
+          },
+        ]
+      : menu;
+  const allowed = (id: string) =>
+    !VIEW_FEATURES[id] ||
+    data?.isPlatformAdmin ||
+    planHasFeature(plan, VIEW_FEATURES[id]!);
+  const nav = (
+    <nav aria-label="Navegação principal">
+      {["Trabalho", "Operação", "Gestão"].map((group) => (
+        <div className="nx-nav-group" key={group}>
+          <p>{group}</p>
+          {items
+            .filter((i) => i.group === group)
+            .map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  className="nx-nav-link"
+                  aria-current={active === item.id ? "page" : undefined}
+                  onClick={() => go(item.id)}
+                >
+                  <Icon size={17} />
+                  <span>{item.label}</span>
+                  {!allowed(item.id) && (
+                    <LockKeyhole size={13} className="nx-lock" />
+                  )}
+                </button>
+              );
+            })}
+        </div>
+      ))}
+    </nav>
+  );
+  const sidebar = (
+    <>
+      <Brand />
+      <div className="nx-workspace">
+        <strong>{data?.organization?.name || "A sua empresa"}</strong>
+        <span className="nx-label">Espaço de trabalho</span>
+      </div>
+      {nav}
+      <div className="nx-side-footer">
+        <div className="flex items-center justify-between">
+          <Status value={data?.subscription?.plan || "A carregar"} />
+          <button onClick={() => go("team")} className="text-sm text-[#A8C5FF]">
+            Gerir
+          </button>
+        </div>
+        <p className="nx-label mt-3">
+          {data?.contactCount ?? data?.leads.length ?? 0} /{" "}
+          {data?.planLimits.contacts ?? "—"} contactos
+        </p>
+      </div>
+    </>
+  );
+  return (
+    <div className="nx-shell">
+      <a className="nx-skip" href="#conteudo">
+        Saltar para o conteúdo
+      </a>
+      <Toaster richColors position="top-right" />
+      <aside className="nx-sidebar">{sidebar}</aside>
+      <Sheet open={mobile} onOpenChange={setMobile}>
+        <SheetContent
+          side="left"
+          className="w-[min(320px,90vw)] bg-[#0B1522] border-[#29384B] p-5 overflow-y-auto"
+        >
+          <SheetTitle className="sr-only">Menu NexSell</SheetTitle>
+          <SheetDescription className="sr-only">
+            Escolha uma área de trabalho.
+          </SheetDescription>
+          {sidebar}
+        </SheetContent>
+      </Sheet>
+      <div className="nx-content">
+        <header className="nx-topbar">
+          <button
+            className="nx-mobile-menu"
+            aria-label="Abrir menu"
+            onClick={() => setMobile(true)}
+          >
+            <Menu size={23} />
+          </button>
+          <div className="nx-crumb">
+            {data?.organization?.name || "NexSell"}{" "}
+            <ChevronRight size={14} className="inline mx-2" />{" "}
+            <span className="text-[#F7F9FC]">
+              {items.find((i) => i.id === active)?.label}
+            </span>
+          </div>
+          <form action="/api/auth/logout" method="post">
+            <button title="Terminar sessão">
+              <span className="nx-hide-mobile">{user.displayName}</span>
+              <LogOut size={17} />
+              <span className="sr-only">Terminar sessão</span>
+            </button>
+          </form>
+        </header>
+        <main id="conteudo" className="nx-main" tabIndex={-1}>
+          {loading ? (
+            <div role="status" className="nx-loading">
+              <LoaderCircle className="animate-spin" />A carregar a sua empresa…
+            </div>
+          ) : error ? (
+            <EmptyState
+              title="Não foi possível abrir o espaço de trabalho."
+              action={<Action onClick={refresh}>Tentar novamente</Action>}
+            >
+              {error}
+            </EmptyState>
+          ) : data ? (
+            <div className="fade-up" key={active}>
+              {data.truncated && (
+                <p className="nx-notice mb-6">
+                  Esta vista contém apenas parte do histórico. Os valores e a
+                  pesquisa referem-se aos registos apresentados; o total de
+                  contactos indica a utilização completa do pacote.
+                </p>
+              )}
+              {!allowed(active) ? (
+                <>
+                  <Heading
+                    title={
+                      items.find((i) => i.id === active)?.label ||
+                      "Funcionalidade"
+                    }
+                    description={
+                      "Disponível a partir do " +
+                      minimumPlanFor(VIEW_FEATURES[active]!).name +
+                      "."
+                    }
+                  />
+                  <Upgrade
+                    message={
+                      "O pacote " +
+                      data.subscription?.plan +
+                      " não inclui esta funcionalidade. Escolha um pacote superior para a utilizar."
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  {active === "dashboard" && (
+                    <Dashboard
+                      data={data}
+                      go={go}
+                      add={() => setLeadOpen(true)}
+                    />
+                  )}
+                  {active === "leads" && (
+                    <ContactList
+                      data={data}
+                      search={search}
+                      setSearch={setSearch}
+                      add={() => setLeadOpen(true)}
+                      select={setLeadId}
+                    />
+                  )}
+                  {active === "pipeline" && (
+                    <Pipeline data={data} post={post} saving={saving} />
+                  )}
+                  {active === "inbox" && (
+                    <InboxView data={data} post={post} saving={saving} />
+                  )}
+                  {["agents", "knowledge", "catalog", "approvals"].includes(
+                    active,
+                  ) && (
+                    <AgentsWorkspace
+                      initialTab={
+                        active as
+                          | "agents"
+                          | "knowledge"
+                          | "catalog"
+                          | "approvals"
+                      }
+                    />
+                  )}
+                  {active === "automations" && (
+                    <Automations data={data} post={post} saving={saving} />
+                  )}
+                  {active === "proposals" && (
+                    <Revenue data={data} post={post} saving={saving} />
+                  )}
+                  {active === "reports" && <Reports data={data} />}
+                  {active === "campaigns" && (
+                    <Campaigns data={data} post={post} saving={saving} />
+                  )}
+                  {active === "connections" && <Connections data={data} />}
+                  {active === "team" && (
+                    <Team user={user} data={data} post={post} saving={saving} />
+                  )}
+                  {active === "admin" &&
+                    (data.isPlatformAdmin ? (
+                      <AdminView
+                        customers={data.customers}
+                        payments={data.billingPayments}
+                        post={post}
+                        saving={saving}
+                      />
+                    ) : (
+                      <EmptyState title="Área reservada">
+                        Só o administrador da plataforma pode aceder a esta
+                        área.
+                      </EmptyState>
+                    ))}
+                </>
+              )}
+            </div>
+          ) : null}
+        </main>
+      </div>
+      {leadOpen && (
+        <LeadEditor
+          close={() => setLeadOpen(false)}
+          save={async (body) => {
+            if (await post(body)) setLeadOpen(false);
+          }}
+          saving={saving}
+        />
+      )}{" "}
+      {leadId && data?.leads.find((l) => l.id === leadId) && (
+        <LeadDetail
+          lead={data.leads.find((l) => l.id === leadId)!}
+          close={() => setLeadId(null)}
+          post={post}
+          saving={saving}
+        />
+      )}
     </div>
-    {leadModal&&<LeadModal close={()=>setLeadModal(false)} save={async body=>{if(await post(body)){setLeadModal(false);toast.success("Lead adicionado ao funil")}}} saving={saving}/>} 
-    {selectedLead&&<LeadDrawer lead={data.leads.find(l=>l.id===selectedLead)!} close={()=>setSelectedLead(null)} post={post} saving={saving}/>} 
-  </div>;
+  );
 }
-
-function NavItem({item,active,locked=false,requiredPlan,onClick}:{item:MenuItem;active:boolean;locked?:boolean;requiredPlan?:string;onClick:()=>void}) {const I=item.icon;return <button onClick={onClick} title={locked?`Disponível no plano ${requiredPlan}`:undefined} className={`group flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-semibold transition ${active?"bg-white/[.085] text-white":"text-white/55 hover:bg-white/[.05] hover:text-white"}`}><I size={17} className={active?"text-[#39E675]":"text-white/45 group-hover:text-white/75"}/><span className="flex-1">{item.label}</span>{locked?<span className="flex items-center gap-1 rounded-md border border-white/10 px-1.5 py-1 text-[9px] font-semibold text-white/40"><LockKeyhole size={10}/>{requiredPlan}</span>:item.badge&&<span className="rounded-full bg-[#39E675] px-1.5 py-0.5 text-[9px] font-bold text-[#07111F]">{item.badge}</span>}</button>}
-function UpgradeView({feature,currentPlan}:{feature:PlanFeature;currentPlan:ReturnType<typeof normalizePlanKey>}){
-  const required=minimumPlanFor(feature);
-  const current=NEXSELL_PLANS.find(plan=>plan.key===currentPlan)??NEXSELL_PLANS[0];
-  const featureNames:Record<PlanFeature,string>={crm:"CRM",basic_automations:"Automações",whatsapp:"Conversas no WhatsApp",n8n:"Automações n8n",proposals:"Propostas e pagamentos",payments:"Pagamentos",reports:"Relatórios",connections:"Conexões",ai:"Assistente de IA",campaigns:"Campanhas",team:"Gestão avançada da equipa"};
-  const salesPhone=(process.env.NEXT_PUBLIC_SALES_WHATSAPP??"").replace(/\D/g,"");
-  const message=encodeURIComponent(`Olá, quero subir o meu pacote NexSell de ${current.name} para ${required.name} e desbloquear ${featureNames[feature]}.`);
-  return <div className="mx-auto grid min-h-[68vh] max-w-3xl place-items-center"><Panel className="w-full overflow-hidden"><div className="border-b border-[#233044] bg-[radial-gradient(circle_at_top_right,rgba(57,123,255,.22),transparent_45%)] p-7 sm:p-10"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#142C55] text-[#8FB1FF]"><LockKeyhole size={25}/></div><p className="mt-6 text-[11px] font-black uppercase tracking-[.16em] text-[#39E675]">Funcionalidade protegida por plano</p><h1 className="mt-2 text-3xl font-black tracking-[-.04em]">Desbloqueie {featureNames[feature]}</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[#9CA5B3]">O seu pacote atual é o <b className="text-white">{current.name}</b>. Esta funcionalidade está disponível a partir do plano <b className="text-white">{required.name}</b>. Suba o pacote para continuar.</p></div><div className="grid gap-6 p-7 sm:grid-cols-[1fr_auto] sm:items-center sm:p-10"><div><p className="text-xs font-black text-[#F7F9FC]">Ao mudar para {required.name}, recebe:</p><div className="mt-3 space-y-2">{required.features.slice(0,4).map(item=><p key={item} className="flex items-start gap-2 text-xs leading-5 text-[#9CA5B3]"><Check size={15} className="mt-0.5 shrink-0 text-[#39E675]"/>{item}</p>)}</div></div>{salesPhone?<a target="_blank" rel="noreferrer" href={`https://wa.me/${salesPhone}?text=${message}`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#39E675] px-5 py-3.5 text-sm font-black text-[#07111F]">Subir para {required.name}<ArrowRight size={16}/></a>:<div className="rounded-xl border border-[#397BFF]/30 bg-[#142C55] px-4 py-3 text-center text-xs font-bold text-[#8FB1FF]">Contacte o administrador para subir o pacote</div>}</div></Panel></div>;
+function Dashboard({
+  data,
+  go,
+  add,
+}: {
+  data: Snapshot;
+  go: (view: string) => void;
+  add: () => void;
+}) {
+  const open = data.leads.filter(
+      (l) => !["ganho", "perdido"].includes(l.stage),
+    ),
+    won = data.leads.filter((l) => l.stage === "ganho"),
+    revenue = data.payments
+      .filter((p) => p.status === "confirmado")
+      .reduce((n, p) => n + Number(p.amount), 0);
+  const tasks = data.tasks.filter((t) => t.status === "pendente"),
+    opportunities = [...open].sort((a, b) => b.value - a.value).slice(0, 5);
+  return (
+    <>
+      <Heading
+        eyebrow={new Intl.DateTimeFormat("pt-MZ", {
+          timeZone: "Africa/Maputo",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }).format(new Date())}
+        title="O seu dia de vendas."
+        description="Veja o que precisa de atenção e escolha o próximo passo."
+        action={
+          <Action onClick={add}>
+            <Plus size={16} /> Novo contacto
+          </Action>
+        }
+      />
+      {data.leads.length === 0 && (
+        <section className="nx-onboarding">
+          <div>
+            <p className="nx-eyebrow">Comece por aqui</p>
+            <h2>Prepare a primeira conversa.</h2>
+            <p>
+              Adicione a informação da empresa, configure o agente e traga o
+              primeiro contacto.
+            </p>
+          </div>
+          <ol>
+            {[
+              [
+                "knowledge",
+                "Conhecimento",
+                "Informações que o agente pode usar.",
+              ],
+              [
+                "agents",
+                "O primeiro agente",
+                "Configure e teste antes de publicar.",
+              ],
+              ["leads", "Contactos", "Organize a sua primeira oportunidade."],
+            ].map(([id, title, text], i) => (
+              <li key={id}>
+                <button onClick={() => go(id)}>
+                  <span className="nx-step !flex-none">0{i + 1}</span>
+                  <span>
+                    <strong>{title}</strong>
+                    <small className="block nx-label">{text}</small>
+                  </span>
+                  <ArrowRight size={17} />
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      <div className="nx-metrics">
+        {[
+          [
+            "Contactos",
+            String(data.contactCount ?? data.leads.length),
+            "de " +
+              data.planLimits.contacts.toLocaleString("pt-MZ") +
+              " no pacote",
+          ],
+          [
+            "Oportunidades abertas",
+            money(open.reduce((n, l) => n + Number(l.value), 0)),
+            open.length + " negócios no funil",
+          ],
+          ["Negócios ganhos", String(won.length), "etapa comercial: ganho"],
+          [
+            "Recebimentos registados",
+            money(revenue),
+            "pagamentos confirmados no CRM",
+          ],
+        ].map(([label, value, note]) => (
+          <div className="nx-metric" key={label}>
+            <p>{label}</p>
+            <strong>{value}</strong>
+            <small>{note}</small>
+          </div>
+        ))}
+      </div>
+      <div className="nx-grid-two">
+        <section className="nx-panel">
+          <div className="nx-panel-head">
+            <h2>Oportunidades em aberto</h2>
+            <button onClick={() => go("pipeline")}>
+              Ver funil <ArrowUpRight size={14} className="inline" />
+            </button>
+          </div>
+          {opportunities.length ? (
+            opportunities.map((l) => (
+              <div className="nx-list-row" key={l.id}>
+                <div>
+                  <p className="font-semibold">{l.name}</p>
+                  <small>{l.company || l.interest}</small>
+                </div>
+                <span className="text-sm">{money(l.value)}</span>
+                <button
+                  aria-label={"Ver contacto " + l.name}
+                  onClick={() => go("leads")}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            ))
+          ) : (
+            <EmptyState title="O funil está pronto.">
+              As oportunidades aparecem aqui quando adicionar contactos.
+            </EmptyState>
+          )}
+        </section>
+        <section className="nx-panel">
+          <div className="nx-panel-head">
+            <h2>Próximos passos</h2>
+            <span className="nx-label">{tasks.length} pendentes</span>
+          </div>
+          {tasks.length ? (
+            tasks.slice(0, 5).map((t) => (
+              <div className="nx-list-row" key={t.id}>
+                <div>
+                  <p>{t.title}</p>
+                  <small>
+                    {new Date(t.dueAt).toLocaleDateString("pt-MZ", {
+                      timeZone: "Africa/Maputo",
+                    })}
+                  </small>
+                </div>
+              </div>
+            ))
+          ) : (
+            <EmptyState title="Sem tarefas pendentes.">
+              Abra um contacto para registar a próxima acção comercial.
+            </EmptyState>
+          )}
+        </section>
+      </div>
+    </>
+  );
 }
-function Loading(){return <div className="grid min-h-[60vh] place-items-center"><div className="text-center"><LoaderCircle className="mx-auto animate-spin text-[#39E675]"/><p className="mt-3 text-sm font-bold text-[#7E8796]">A preparar o seu centro de vendas…</p></div></div>}
-
-function Dashboard({data,go}:{data:Snapshot;go:(s:string)=>void}) {
-  const leadsCount=data.leads.length; const pipeline=data.leads.reduce((s,l)=>s+l.value,0); const wonLeads=data.leads.filter(l=>l.stage==="ganho"); const sales=wonLeads.length; const confirmedPayments=data.payments.filter(p=>p.status==="confirmado"); const revenue=confirmedPayments.reduce((s,p)=>s+p.amount,0)+data.campaigns.reduce((s,c)=>s+c.revenue,0);
-  const trend=Array.from({length:7},(_,index)=>{const date=new Date();date.setHours(0,0,0,0);date.setDate(date.getDate()-(6-index));const next=new Date(date);next.setDate(next.getDate()+1);return {d:date.toLocaleDateString("pt-MZ",{weekday:"short"}).replace(".",""),leads:data.leads.filter(lead=>{const value=new Date(lead.updatedAt);return value>=date&&value<next}).length,vendas:wonLeads.filter(lead=>{const value=new Date(lead.updatedAt);return value>=date&&value<next}).length};});
-  const attention=data.leads.filter(l=>l.score>=80).slice(0,4);
-  const qualified=data.leads.filter(lead=>["qualificado","proposta","negociacao"].includes(lead.stage)).length;
-  return <><SectionTitle eyebrow={new Date().toLocaleDateString("pt-MZ",{weekday:"long",day:"2-digit",month:"long"})} title="Visão geral" description={`Acompanhe a operação comercial de ${data.organization?.name||"sua empresa"} e decida onde agir primeiro.`} action={<div className="flex gap-2"><Button secondary onClick={()=>go("reports")}><BarChart3 size={16}/> Relatórios</Button><Button onClick={()=>go("leads")}><Plus size={16}/> Criar contacto</Button></div>}/>
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Metric label="Contactos" value={String(leadsCount)} note={`Limite atual: ${data.planLimits.contacts.toLocaleString("pt-MZ")}`} icon={UserPlus} tone="lime"/>
-      <Metric label="Valor no funil" value={money(pipeline)} note={`${qualified} oportunidades em avanço`} icon={Target} tone="blue"/>
-      <Metric label="Vendas concluídas" value={String(sales)} note={`${confirmedPayments.length} pagamentos confirmados`} icon={CheckCircle2} tone="purple"/>
-      <Metric label="Receita registada" value={money(revenue)} note="Com base nos dados disponíveis" icon={TrendingUp} tone="amber"/>
-    </div>
-    <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_.85fr]">
-      <Panel className="p-5 sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-black">Atividade comercial</p><p className="mt-1 text-xs text-[#7E8796]">Contactos atualizados e vendas nos últimos 7 dias</p></div><Pill tone="gray">Últimos 7 dias</Pill></div><div className="mt-5 h-64"><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend}><defs><linearGradient id="leadFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0D6B4F" stopOpacity={.18}/><stop offset="1" stopColor="#0D6B4F" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#E7ECF1" vertical={false}/><XAxis dataKey="d" axisLine={false} tickLine={false} tick={{fontSize:11,fill:"#667085"}}/><YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:"#667085"}}/><Tooltip contentStyle={{borderRadius:10,border:"1px solid #E3E8EF",fontSize:12}}/><Area type="monotone" dataKey="leads" stroke="#0D6B4F" strokeWidth={2.5} fill="url(#leadFill)"/><Area type="monotone" dataKey="vendas" stroke="#397BFF" strokeWidth={2} fill="transparent"/></AreaChart></ResponsiveContainer></div></Panel>
-      <Panel className="overflow-hidden"><div className="border-b border-[#1F2D40] p-5"><div className="flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-xl bg-[#07111F] text-[#39E675]"><Target size={16}/></div><div><p className="text-sm font-black">Oportunidades prioritárias</p><p className="text-[11px] text-[#7E8796]">Score, valor e próxima ação</p></div></div></div><div className="divide-y divide-[#1B293A]">{attention.map((l,i)=><button key={l.id} onClick={()=>go("leads")} className="flex w-full items-center gap-3 p-4 text-left hover:bg-[#F7F9FB]"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#10291F] text-[11px] font-black text-[#39E675]">{i+1}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold">{l.name} · {l.company}</p><p className="mt-1 truncate text-[11px] text-[#7E8796]">{l.nextAction}</p></div><span className="text-xs font-black text-[#39E675]">{l.score}</span></button>)}</div></Panel>
-    </div>
-    <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
-      <Panel><div className="flex items-center justify-between border-b border-[#1F2D40] p-5"><div><p className="text-sm font-black">Funil em tempo real</p><p className="mt-1 text-xs text-[#7E8796]">Distribuição das oportunidades</p></div><button onClick={()=>go("pipeline")} className="text-xs font-extrabold text-[#39E675]">Abrir funil →</button></div><div className="grid grid-cols-3 gap-px bg-[#1B293A] sm:grid-cols-6">{stages.map(s=>{const items=data.leads.filter(l=>l.stage===s.id);return <div key={s.id} className="bg-[#111B2A] p-4"><div className="mb-3 h-1.5 rounded-full" style={{background:s.color}}/><p className="text-[10px] font-bold text-[#7E8796]">{s.label}</p><p className="mt-1 text-xl font-black">{items.length}</p><p className="mt-1 truncate text-[10px] text-[#7E8796]">{money(items.reduce((a,l)=>a+l.value,0))}</p></div>})}</div></Panel>
-      <Panel className="p-5"><div className="flex items-center justify-between"><div><p className="text-sm font-black">Plano de hoje</p><p className="mt-1 text-xs text-[#7E8796]">{data.tasks.filter(t=>t.status==="pendente").length} ações pendentes</p></div><CalendarClock size={19} className="text-[#7E8796]"/></div><div className="mt-4 space-y-2">{data.tasks.slice(0,4).map(t=><div key={t.id} className="flex items-center gap-3 rounded-xl border border-[#1F2D40] p-3"><div className={`h-2 w-2 rounded-full ${t.priority==="alta"?"bg-[#e75b4e]":"bg-[#e6a33d]"}`}/><div className="flex-1"><p className="text-xs font-extrabold">{t.title}</p><p className="mt-1 text-[10px] text-[#7E8796]">Hoje · {new Date(t.dueAt).toLocaleTimeString("pt-MZ",{hour:"2-digit",minute:"2-digit"})}</p></div><ChevronRight size={15} className="text-[#7E8796]"/></div>)}</div></Panel>
-    </div>
-  </>;
-}
-function Metric({label,value,note,icon:Icon,tone}:{label:string;value:string;note:string;icon:LucideIcon;tone:string}){const styles:Record<string,string>={lime:"bg-[#10291F] text-[#39E675]",blue:"bg-[#142C55] text-[#397BFF]",purple:"bg-[#2D2450] text-[#B698FF]",amber:"bg-[#3D3218] text-[#F6C945]"};return <Panel className="p-5"><div className="flex items-center justify-between"><p className="text-xs font-semibold text-[#667085]">{label}</p><div className={`grid h-9 w-9 place-items-center rounded-[10px] ${styles[tone]}`}><Icon size={17}/></div></div><p className="mt-4 text-[28px] font-black leading-none tracking-[-.04em]">{value}</p><p className="mt-3 text-[11px] font-medium text-[#667085]">{note}</p></Panel>}
-
-function Leads({data,search,setSearch,openLead,selectLead}:{data:Snapshot;search:string;setSearch:(s:string)=>void;openLead:()=>void;selectLead:(s:string)=>void}){
-  const filtered=data.leads.filter(l=>(l.name+l.company+l.phone).toLowerCase().includes(search.toLowerCase()));
-  return <><SectionTitle eyebrow="Base comercial" title="Contactos" description="Gerencie clientes, oportunidades e próximos passos num só lugar." action={<Button onClick={openLead}><Plus size={16}/> Criar contacto</Button>}/>
-    <Panel className="overflow-hidden"><div className="flex flex-col gap-3 border-b border-[#1F2D40] p-5 sm:flex-row sm:items-center sm:justify-between"><div className="relative w-full max-w-lg"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7E8796]" size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Pesquisar por nome, telefone ou empresa" className="w-full rounded-xl border border-[#233044] bg-[#0C1725] py-3 pl-10 pr-3 text-sm outline-none focus:border-[#397BFF] focus:bg-white"/></div><p className="text-xs font-semibold text-[#667085]">{filtered.length} de {data.leads.length} contactos</p></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[#1F2D40] bg-[#0C1725] text-[10px] font-extrabold uppercase tracking-[.1em] text-[#7E8796]"><th className="px-5 py-3.5">Contacto</th><th>Origem</th><th>Interesse</th><th>Etapa</th><th>Pontuação</th><th>Valor</th><th>Próxima ação</th><th></th></tr></thead><tbody>{filtered.map(l=><tr key={l.id} onClick={()=>selectLead(l.id)} className="cursor-pointer border-b border-[#1B293A] text-xs transition hover:bg-[#F7F9FB]"><td className="px-5 py-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-[10px] bg-[#182536] font-black text-[#F7F9FC]">{l.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div><p className="font-extrabold">{l.name}</p><p className="mt-1 text-[10px] text-[#7E8796]">{l.company} · {l.phone}</p></div></div></td><td><Pill tone={l.source==="Meta Ads"?"blue":l.source==="Instagram"?"purple":"gray"}>{l.source}</Pill></td><td className="font-bold text-[#B0B7C2]">{l.interest}</td><td><Pill tone={l.stage==="proposta"?"amber":l.stage==="qualificado"?"purple":l.stage==="negociacao"?"red":"blue"}>{stages.find(s=>s.id===l.stage)?.label||l.stage}</Pill></td><td><div className="flex items-center gap-2"><span className="font-black">{l.score}</span><div className="h-1.5 w-12 rounded-full bg-[#233044]"><div className="h-full rounded-full bg-[#39E675]" style={{width:`${l.score}%`}}/></div></div></td><td className="font-extrabold">{money(l.value)}</td><td className="text-[#7E8796]">{l.nextAction}</td><td><ChevronRight size={16} className="text-[#7E8796]"/></td></tr>)}</tbody></table>{!filtered.length&&<Empty icon={Users} title="Nenhum contacto encontrado" text="Altere a pesquisa ou crie um novo contacto para começar."/>}</div>
-    </Panel>
-  </>;
-}
-
-function Pipeline({data,post}:{data:Snapshot;post:PostFn}){
-  return <><SectionTitle eyebrow="Processo comercial" title="Funil de vendas" description="Mova oportunidades de etapa e mantenha a equipa concentrada nos negócios certos." action={<div className="flex items-center gap-2 rounded-xl bg-[#153B2A] px-4 py-2.5 text-xs font-extrabold text-[#39E675]"><CircleDollarSign size={16}/>{money(data.leads.reduce((a,l)=>a+l.value,0))} em aberto</div>}/>
-    <div className="flex gap-4 overflow-x-auto pb-5 scroll-thin">{stages.map(stage=>{const cards=data.leads.filter(l=>l.stage===stage.id);return <div key={stage.id} className="min-w-[270px] flex-1"><div className="mb-3 flex items-center justify-between px-1"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{background:stage.color}}/><span className="text-xs font-black">{stage.label}</span><span className="rounded-md bg-[#233044] px-1.5 py-.5 text-[10px] font-black text-[#7E8796]">{cards.length}</span></div><span className="text-[10px] font-bold text-[#7E8796]">{money(cards.reduce((a,l)=>a+l.value,0))}</span></div><div className="min-h-[520px] space-y-3 rounded-2xl border border-[#233044] bg-[#0C1725]/70 p-3">{cards.map(l=><div key={l.id} className="rounded-xl border border-[#233044] bg-[#111B2A] p-4 card-shadow"><div className="flex items-start justify-between"><div><p className="text-sm font-black">{l.name}</p><p className="mt-1 text-[11px] text-[#7E8796]">{l.company}</p></div><span className={`flex items-center gap-1 text-[10px] font-extrabold ${l.score>80?"text-[#c54e3e]":"text-[#7E8796]"}`}>{l.score>80&&<Flame size={12}/>} {l.score}</span></div><p className="mt-4 text-xs font-extrabold">{money(l.value)}</p><p className="mt-2 line-clamp-1 text-[10px] text-[#7E8796]">{l.interest}</p><div className="mt-4 flex items-center justify-between border-t border-[#1B293A] pt-3"><span className="text-[10px] font-bold text-[#7E8796]">{l.source}</span><select value={l.stage} onChange={e=>post({action:"update_stage",leadId:l.id,stage:e.target.value})} className="max-w-28 rounded-lg border border-[#233044] bg-[#111B2A] px-2 py-1 text-[10px] font-bold outline-none">{stages.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</select></div></div>)}</div></div>})}</div>
-  </>;
-}
-
-function InboxView({data,post,saving}:{data:Snapshot;post:PostFn;saving:boolean}){
-  const [current,setCurrent]=useState(data.leads[0]?.id||""); const [message,setMessage]=useState(""); const lead=data.leads.find(l=>l.id===current);
-  const send=async()=>{if(!message.trim()||!lead)return;if(await post({action:"send_message",leadId:lead.id,body:message})){setMessage("");toast.success("Mensagem registada");}};
-  return <><SectionTitle eyebrow="WhatsApp unificado" title="Conversas" description="Atenda, qualifique e feche negócios sem perder o contexto do cliente."/>
-    <Panel className="grid min-h-[650px] overflow-hidden lg:grid-cols-[310px_1fr_300px]"><div className="border-r border-[#1F2D40]"><div className="border-b border-[#1F2D40] p-4"><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E8796]"/><input className="w-full rounded-xl bg-[#0C1725] py-2.5 pl-9 pr-3 text-xs outline-none" placeholder="Pesquisar conversa"/></div></div><div className="divide-y divide-[#1B293A]">{data.leads.map((l,i)=><button key={l.id} onClick={()=>setCurrent(l.id)} className={`flex w-full gap-3 p-4 text-left ${current===l.id?"bg-[#142C55]":"hover:bg-[#142235]"}`}><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#182536] text-xs font-black">{l.name.charAt(0)}</div><div className="min-w-0 flex-1"><div className="flex justify-between"><p className="truncate text-xs font-extrabold">{l.name}</p><span className="text-[9px] text-[#7E8796]">{i*7+2}m</span></div><p className="mt-1 truncate text-[10px] text-[#7E8796]">{l.nextAction}</p></div>{i<3&&<span className="h-2 w-2 rounded-full bg-[#39E675]"/>}</button>)}</div></div>
-      <div className="flex min-h-[600px] flex-col bg-[#0B1522]"><div className="flex items-center justify-between border-b border-[#1F2D40] bg-[#111B2A] p-4"><div><p className="text-sm font-black">{lead?.name}</p><p className="mt-1 flex items-center gap-1 text-[10px] text-[#7E8796]"><span className="h-1.5 w-1.5 rounded-full bg-[#39E675]"/> WhatsApp · {lead?.phone}</p></div><Pill tone="green">{lead?.score} pontos</Pill></div><div className="flex-1 space-y-3 overflow-y-auto p-5"><div className="max-w-[76%] rounded-2xl rounded-tl-sm bg-[#111B2A] p-3 text-xs leading-5 shadow-sm">Olá! Vi a vossa página e gostaria de saber mais sobre {lead?.interest.toLowerCase()}.</div><div className="ml-auto max-w-[76%] rounded-2xl rounded-tr-sm bg-[#153B2A] p-3 text-xs leading-5">Olá, {lead?.name.split(" ")[0]}! Obrigado pelo contacto. Posso fazer algumas perguntas rápidas para recomendar a melhor opção?</div><div className="mx-auto flex w-fit items-center gap-2 rounded-full bg-[#233044] px-3 py-1.5 text-[9px] font-bold text-[#7E8796]"><Bot size={12}/> IA qualificou este lead como {lead?.temperature}</div>{data.activities.filter(a=>a.leadId===lead?.id).reverse().map(a=><div key={a.id} className="ml-auto max-w-[76%] rounded-2xl rounded-tr-sm bg-[#153B2A] p-3 text-xs leading-5">{a.body}<span className="ml-2 text-[9px] text-[#7E8796]">{a.status}</span></div>)}</div><div className="border-t border-[#1F2D40] bg-[#111B2A] p-3"><div className="mb-2 flex gap-2"><button className="rounded-lg bg-[#182536] px-2.5 py-1.5 text-[10px] font-bold">✨ Sugerir resposta</button><button className="rounded-lg bg-[#182536] px-2.5 py-1.5 text-[10px] font-bold">📎 Proposta</button><button className="rounded-lg bg-[#182536] px-2.5 py-1.5 text-[10px] font-bold">📅 Agendar</button></div><div className="flex gap-2"><textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Escreva uma mensagem…" className="min-h-12 flex-1 resize-none rounded-xl border border-[#233044] bg-[#0C1725] p-3 text-xs outline-none focus:border-[#397BFF]"/><button onClick={send} disabled={saving||!message.trim()} className="grid h-12 w-12 place-items-center rounded-xl bg-[#39E675] text-[#07111F] disabled:opacity-40"><Send size={17}/></button></div></div></div>
-      <div className="hidden border-l border-[#1F2D40] p-5 lg:block"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#182536] text-lg font-black">{lead?.name.charAt(0)}</div><p className="mt-3 text-sm font-black">{lead?.name}</p><p className="mt-1 text-[10px] text-[#7E8796]">{lead?.company} · {lead?.location}</p></div><div className="mt-6 grid grid-cols-2 gap-2"><Mini label="Score" value={String(lead?.score)}/><Mini label="Valor" value={money(lead?.value||0)}/></div><div className="mt-6"><p className="text-[10px] font-extrabold uppercase tracking-[.12em] text-[#7E8796]">Resumo da IA</p><p className="mt-2 text-xs leading-5 text-[#B0B7C2]">Procura {lead?.interest.toLowerCase()}, demonstrou intenção clara e deve receber {lead?.nextAction.toLowerCase()}.</p></div><div className="mt-5 rounded-xl bg-[#10291F] p-3"><p className="text-[10px] font-black text-[#39E675]">PRÓXIMA MELHOR AÇÃO</p><p className="mt-2 text-xs font-extrabold">{lead?.nextAction}</p></div></div>
-    </Panel>
-  </>;
-}
-function Mini({label,value}:{label:string;value:string}){return <div className="rounded-xl bg-[#0C1725] p-3"><p className="text-[9px] font-bold uppercase text-[#7E8796]">{label}</p><p className="mt-1 text-xs font-black">{value}</p></div>}
-
-function Automations({data,post,saving,canUseN8n}:{data:Snapshot;post:PostFn;saving:boolean;canUseN8n:boolean}){
-  return <><SectionTitle eyebrow="Fluxos comerciais" title="Automações" description="Fluxos que acompanham tarefas e oportunidades sem perder o controlo comercial." action={<Button><Plus size={16}/> Nova automação</Button>}/>
-    <div className="mb-5 grid gap-4 sm:grid-cols-3"><Metric label="Execuções este mês" value={String(data.automations.reduce((a,x)=>a+x.runs,0))} note={`Até ${data.planLimits.activeAutomations} automações ativas`} icon={Activity} tone="blue"/><Metric label="Tempo poupado" value="38h" note="Estimativa automática" icon={Clock3} tone="lime"/><Metric label="Taxa de sucesso" value="96,8%" note="+2,1% este mês" icon={Gauge} tone="purple"/></div>
-    <Panel className="overflow-hidden"><div className="grid grid-cols-[1.4fr_1fr_1fr_100px] gap-4 border-b border-[#1F2D40] bg-[#0C1725] px-5 py-3 text-[10px] font-extrabold uppercase tracking-[.1em] text-[#7E8796]"><span>Fluxo</span><span>Gatilho</span><span>Desempenho</span><span>Estado</span></div><div className="divide-y divide-[#1B293A]">{data.automations.map(a=><div key={a.id} className="grid grid-cols-1 gap-4 p-5 md:grid-cols-[1.4fr_1fr_1fr_100px] md:items-center"><div className="flex gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#10291F] text-[#39E675]"><Workflow size={18}/></div><div><p className="text-sm font-black">{a.name}</p><p className="mt-1 text-[11px] text-[#7E8796]">{a.action}</p></div></div><div><p className="text-xs font-bold">{a.trigger}</p><p className="mt-1 text-[10px] text-[#7E8796]">{canUseN8n?"via webhook n8n":"automação interna"}</p></div><div><p className="text-xs font-black">{a.runs} execuções</p><p className="mt-1 text-[10px] font-bold text-[#39E675]">{a.successRate}% de sucesso</p></div><div className="flex items-center gap-2"><button disabled={saving} onClick={()=>post({action:"toggle_automation",automationId:a.id,status:a.status==="ativa"?"pausada":"ativa"})} className={`relative h-6 w-11 rounded-full transition ${a.status==="ativa"?"bg-[#39E675]":"bg-[#cdd3ce]"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-[#111B2A] shadow transition ${a.status==="ativa"?"left-6":"left-1"}`}/></button><span className="text-[10px] font-bold">{a.status}</span></div></div>)}</div></Panel>
-    <Panel className="mt-5 overflow-hidden bg-[#07111F] text-white"><div className="grid gap-6 p-6 md:grid-cols-[1fr_auto] md:items-center"><div><div className="flex items-center gap-2 text-sm font-black text-[#39E675]"><Network size={17}/> Centro de integração n8n {!canUseN8n&&<LockKeyhole size={14}/>}</div><p className="mt-2 max-w-2xl text-xs leading-6 text-white/55">{canUseN8n?"Receba leads, chame a IA, envie mensagens aprovadas, atualize o CRM, gere tarefas e confirme pagamentos através de fluxos auditáveis.":"A integração n8n e a entrada automática de leads ficam disponíveis a partir do plano Growth. Suba o pacote para ligar workflows externos."}</p></div>{canUseN8n?<Button secondary onClick={async()=>{const a=data.automations[0];if(a&&await post({action:"test_n8n",automationId:a.id}))toast.success("O n8n confirmou o teste")}}>Testar webhook <Zap size={15}/></Button>:<span className="rounded-xl border border-[#397BFF]/30 bg-[#142C55] px-4 py-3 text-xs font-black text-[#8FB1FF]">Suba para Growth</span>}</div></Panel>
-  </>;
-}
-
-function Revenue({data,post,saving}:{data:Snapshot;post:PostFn;saving:boolean}){
-  const [proposal,setProposal]=useState(false); const total=data.proposals.reduce((a,p)=>a+p.amount,0); const received=data.payments.filter(p=>p.status==="confirmado").reduce((a,p)=>a+p.amount,0);
-  return <><SectionTitle eyebrow="Fecho e cobrança" title="Propostas e pagamentos" description="Crie propostas profissionais e acompanhe cobranças por M-Pesa, e-Mola ou transferência." action={<Button onClick={()=>setProposal(true)}><Plus size={16}/> Criar proposta</Button>}/>
-    <div className="grid gap-4 sm:grid-cols-3"><Metric label="Propostas enviadas" value={String(data.proposals.length)} note={`${money(total)} em negociação`} icon={FileText} tone="blue"/><Metric label="Pagamentos confirmados" value={money(received)} note="Reconciliação atualizada" icon={CreditCard} tone="lime"/><Metric label="Previsão 30 dias" value={money(total*.72)} note="Baseada no score do funil" icon={TrendingUp} tone="amber"/></div>
-    <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_.8fr]"><Panel className="overflow-hidden"><div className="border-b border-[#1F2D40] p-5"><p className="text-sm font-black">Propostas recentes</p></div>{data.proposals.length?<div className="divide-y divide-[#1B293A]">{data.proposals.map(p=><div key={p.id} className="flex items-center gap-4 p-4"><div className="grid h-10 w-10 place-items-center rounded-xl bg-[#182536]"><FileText size={17}/></div><div className="flex-1"><p className="text-xs font-black">{p.title}</p><p className="mt-1 text-[10px] text-[#7E8796]">{p.code} · válida até {new Date(p.dueDate).toLocaleDateString("pt-MZ")}</p></div><div className="text-right"><p className="text-xs font-black">{money(p.amount)}</p><Pill tone="amber">{p.status}</Pill></div></div>)}</div>:<Empty icon={FileText} title="Ainda não existem propostas" text="Crie a primeira proposta a partir de um lead qualificado."/>}</Panel>
-      <Panel className="p-5"><div className="flex items-center justify-between"><div><p className="text-sm font-black">Métodos de pagamento</p><p className="mt-1 text-xs text-[#7E8796]">Disponibilidade por integração</p></div><ShieldCheck size={19} className="text-[#39E675]"/></div><div className="mt-5 space-y-3">{[{n:"M-Pesa",c:"#e63d35"},{n:"e-Mola",c:"#ee8d25"},{n:"Transferência bancária",c:"#397BFF"}].map(x=><div key={x.n} className="flex items-center gap-3 rounded-xl border border-[#233044] p-3"><span className="h-3 w-3 rounded-full" style={{background:x.c}}/><span className="flex-1 text-xs font-extrabold">{x.n}</span><Pill>Configurar</Pill></div>)}</div><div className="mt-5 rounded-xl bg-[#0C1725] p-4"><p className="text-[10px] font-black uppercase text-[#7E8796]">Automação disponível</p><p className="mt-2 text-xs leading-5 text-[#B0B7C2]">Ao confirmar um pagamento, mover o lead para “Ganho”, enviar recibo e iniciar onboarding.</p></div></Panel></div>
-    {proposal&&<ProposalModal leads={data.leads} close={()=>setProposal(false)} save={async b=>{if(await post(b)){setProposal(false);toast.success("Proposta criada e adicionada ao negócio")}}} saving={saving}/>} 
-  </>;
-}
-
-function Campaigns({data}:{data:Snapshot}){
-  return <><SectionTitle eyebrow="Aquisição" title="Campanhas" description="Compare investimento, leads e receita para saber exatamente de onde vêm as vendas." action={<Button><Plus size={16}/> Nova campanha</Button>}/>
-    <div className="grid gap-5 lg:grid-cols-[1.25fr_.75fr]"><Panel className="overflow-hidden"><div className="border-b border-[#1F2D40] p-5"><p className="text-sm font-black">Desempenho por campanha</p></div><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><thead><tr className="bg-[#0C1725] text-[10px] uppercase tracking-[.08em] text-[#7E8796]"><th className="px-5 py-3">Campanha</th><th>Canal</th><th>Investimento</th><th>Leads</th><th>Vendas</th><th>Receita</th><th>ROAS</th></tr></thead><tbody>{data.campaigns.map(c=><tr key={c.id} className="border-t border-[#1B293A]"><td className="px-5 py-4 font-black">{c.name}</td><td><Pill tone={c.channel==="Meta Ads"?"blue":c.channel==="Instagram"?"purple":"green"}>{c.channel}</Pill></td><td>{money(c.spend)}</td><td>{c.leads}</td><td>{c.sales}</td><td className="font-black">{money(c.revenue)}</td><td className="font-black text-[#39E675]">{c.spend?`${(c.revenue/c.spend).toFixed(1)}×`:`∞`}</td></tr>)}</tbody></table></div></Panel>
-      <Panel className="p-5"><p className="text-sm font-black">Origem dos leads</p><p className="mt-1 text-xs text-[#7E8796]">Distribuição atual</p><div className="h-56"><ResponsiveContainer><PieChart><Pie data={data.campaigns} dataKey="leads" nameKey="channel" innerRadius={52} outerRadius={78} paddingAngle={4}>{["#39E675","#8E5BFF","#397BFF","#F6C945"].map((c,i)=><Cell key={c} fill={c}/>)}</Pie><Tooltip contentStyle={{borderRadius:12,border:"1px solid #233044",fontSize:12}}/></PieChart></ResponsiveContainer></div><div className="space-y-2">{data.campaigns.map((c,i)=><div key={c.id} className="flex items-center text-xs"><span className="mr-2 h-2 w-2 rounded-full" style={{background:["#39E675","#8E5BFF","#397BFF","#F6C945"][i]}}/><span className="flex-1 text-[#7E8796]">{c.channel}</span><span className="font-black">{c.leads} leads</span></div>)}</div></Panel></div>
-  </>;
-}
-
-function Reports({data}:{data:Snapshot}){
-  const funnel=stages.map(s=>({name:s.label,leads:data.leads.filter(l=>l.stage===s.id).length||0}));
-  return <><SectionTitle eyebrow="Inteligência comercial" title="Relatórios" description="Decisões orientadas por receita, velocidade de resposta e conversão real." action={<Button secondary><FileText size={15}/> Exportar PDF</Button>}/>
-    <div className="grid gap-5 lg:grid-cols-2"><Panel className="p-5"><p className="text-sm font-black">Conversão por etapa</p><p className="mt-1 text-xs text-[#7E8796]">Leads no funil atual</p><div className="mt-5 h-72"><ResponsiveContainer><BarChart data={funnel} layout="vertical"><CartesianGrid stroke="#1B293A" horizontal={false}/><XAxis type="number" axisLine={false} tickLine={false}/><YAxis width={80} dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize:10}}/><Tooltip contentStyle={{borderRadius:12,border:"1px solid #233044"}}/><Bar dataKey="leads" fill="#39E675" radius={[0,7,7,0]}/></BarChart></ResponsiveContainer></div></Panel><Panel className="p-5"><p className="text-sm font-black">Indicadores de vendas</p><p className="mt-1 text-xs text-[#7E8796]">Últimos 30 dias</p><div className="mt-5 grid grid-cols-2 gap-3">{[{l:"Tempo de 1ª resposta",v:"3m 42s",n:"↓ 28%"},{l:"Taxa de contacto",v:"81,4%",n:"↑ 6,2%"},{l:"Conversão lead → venda",v:"16,8%",n:"↑ 3,1%"},{l:"Ticket médio",v:"18.430 MT",n:"↑ 8,7%"},{l:"Ciclo médio",v:"5,4 dias",n:"↓ 1,2 dias"},{l:"Receita por lead",v:"3.096 MT",n:"↑ 11,4%"}].map(x=><div key={x.l} className="rounded-xl border border-[#233044] p-4"><p className="text-[10px] font-bold text-[#7E8796]">{x.l}</p><p className="mt-2 text-lg font-black">{x.v}</p><p className="mt-1 text-[10px] font-bold text-[#39E675]">{x.n}</p></div>)}</div></Panel></div>
-    <Panel className="mt-5 bg-[#07111F] p-6 text-white"><div className="flex flex-col gap-5 md:flex-row md:items-center"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#39E675] text-[#07111F]"><Bot/></div><div className="flex-1"><p className="text-sm font-black">Leitura da IA</p><p className="mt-2 max-w-3xl text-xs leading-6 text-white/55">Os leads de Instagram estão a responder mais rápido, mas a campanha Meta Ads gera negócios de maior valor. Concentre 60% do orçamento em Meta e use a sequência WhatsApp de 48 horas para aumentar o fecho das propostas.</p></div><Button secondary>Aplicar recomendação</Button></div></Panel>
-  </>;
-}
-
-function Connections({data}:{data:Snapshot}){
-  const info:Record<string,[LucideIcon,string]>={whatsapp:[MessageCircle,"Receber e enviar mensagens oficiais"],n8n:[Workflow,"Orquestrar automações e sistemas"],meta:[Megaphone,"Captar leads dos formulários Meta"],google:[Globe2,"Atribuir leads e conversões"],mpesa:[CreditCard,"Cobrar por M-Pesa através da Pagar"],emola:[CreditCard,"Cobrar por e-Mola através da Pagar"],pagar:[CreditCard,"Confirmar pagamentos móveis e ativar subscrições automaticamente"],ai:[Sparkles,"Qualificar, resumir e sugerir ações"]};
-  const enabledConnections=data.integrations.filter(i=>i.provider!=="google");
-  const connectionRows=enabledConnections.some(i=>i.provider==="pagar")?enabledConnections:[...enabledConnections,{id:"pagar",provider:"pagar",label:"Pagar — M-Pesa e e-Mola",status:"por_configurar",lastSyncAt:null}];
-  return <><SectionTitle eyebrow="Ecossistema" title="Conexões" description="Ligue as contas oficiais para transformar o NexSell no centro operacional das suas vendas."/>
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{connectionRows.map(i=>{const [Icon,desc]=info[i.provider]||[Network,"Integração comercial"];return <Panel key={i.id} className="p-5"><div className="flex items-start justify-between"><div className="grid h-11 w-11 place-items-center rounded-xl bg-[#182536]"><Icon size={20}/></div><Pill tone={i.status==="ativa"?"green":"gray"}>{i.status==="ativa"?"Ligado":"Por configurar"}</Pill></div><p className="mt-5 text-sm font-black">{i.label}</p><p className="mt-2 text-xs leading-5 text-[#7E8796]">{desc}</p><button className="mt-5 flex items-center gap-1 text-xs font-extrabold text-[#39E675]">Configurar com credenciais oficiais <ArrowRight size={13}/></button></Panel>})}</div>
-    <Panel className="mt-5 p-5"><div className="flex flex-col gap-4 md:flex-row md:items-center"><div className="grid h-11 w-11 place-items-center rounded-xl bg-[#3D3218] text-[#F6C945]"><ShieldCheck/></div><div className="flex-1"><p className="text-sm font-black">Segurança e conformidade</p><p className="mt-1 text-xs leading-5 text-[#7E8796]">O NexSell usa a API oficial do WhatsApp, regista consentimento e não depende de QR codes, scraping ou envios não autorizados.</p></div><Pill tone="green">Arquitetura segura</Pill></div></Panel>
-  </>;
-}
-
-function Team({user,data,canInvite}:{user:NonNullable<User>;data:Snapshot;canInvite:boolean}){
-  const currentPlan=NEXSELL_PLANS.find(plan=>plan.name===(data.subscription?.plan||"Growth"))??NEXSELL_PLANS[1];
-  return <><SectionTitle eyebrow="Operação" title="Equipa e subscrição" description="Controle acessos, objetivos, desempenho e o plano da sua organização." action={canInvite?<Button><UserPlus size={16}/> Convidar membro</Button>:<span className="inline-flex items-center gap-2 rounded-xl border border-[#233044] bg-[#111B2A] px-4 py-2.5 text-xs font-bold text-[#7E8796]"><LockKeyhole size={14}/> Equipa avançada no Scale</span>}/>
-    <div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]"><Panel className="overflow-hidden"><div className="border-b border-[#1F2D40] p-5"><p className="text-sm font-black">Membros</p></div><div className="flex items-center gap-4 p-5"><div className="grid h-11 w-11 place-items-center rounded-xl bg-[#07111F] font-black text-[#39E675]">{user.displayName[0]}</div><div className="flex-1"><p className="text-sm font-black">{user.displayName}</p><p className="mt-1 text-xs text-[#7E8796]">{user.email}</p></div><Pill tone="green">Proprietário</Pill></div><div className="border-t border-[#1B293A] p-5"><p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-[#7E8796]">Permissões disponíveis</p><div className="mt-3 flex flex-wrap gap-2">{["Administrador","Gestor","Vendedor","Analista"].map(x=><Pill key={x}>{x}</Pill>)}</div></div></Panel><Panel className="overflow-hidden"><div className="bg-[#07111F] p-5 text-white"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#39E675]">Plano atual</p><div className="mt-2 flex items-end justify-between"><p className="text-2xl font-black">{currentPlan.name}</p><p className="text-sm font-black">{money(data.subscription?.monthlyAmount||currentPlan.monthlyAmount)}<span className="text-[10px] font-normal text-white/45">/mês</span></p></div></div><div className="p-5"><div className="space-y-3">{currentPlan.features.map(x=><p key={x} className="flex items-center gap-2 text-xs font-bold"><Check size={15} className="text-[#39E675]"/>{x}</p>)}</div><Button secondary><CreditCard size={15}/> Gerir subscrição</Button></div></Panel></div>
-  </>;
-}
-
-function Empty({icon:Icon,title,text}:{icon:LucideIcon;title:string;text:string}){return <div className="grid place-items-center p-12 text-center"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#182536] text-[#7E8796]"><Icon/></div><p className="mt-4 text-sm font-black">{title}</p><p className="mt-2 max-w-xs text-xs leading-5 text-[#7E8796]">{text}</p></div>}
-
-function Modal({children,close}:{children:React.ReactNode;close:()=>void}){return <div className="fixed inset-0 z-[70] grid place-items-center bg-[#07111F]/45 p-4 backdrop-blur-sm" onMouseDown={close}><div onMouseDown={e=>e.stopPropagation()} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-[#111B2A] p-6 shadow-2xl">{children}</div></div>}
-const Field=({label,children}:{label:string;children:React.ReactNode})=><label className="block"><span className="mb-1.5 block text-[11px] font-extrabold text-[#7E8796]">{label}</span>{children}</label>;
-const inputClass="w-full rounded-xl border border-[#233044] bg-[#0C1725] px-3 py-2.5 text-sm outline-none focus:border-[#397BFF]";
-function LeadModal({close,save,saving}:{close:()=>void;save:(b:any)=>void;saving:boolean}){const [form,setForm]=useState({name:"",company:"",phone:"",email:"",source:"Website",interest:"Website profissional",value:0,consent:true});return <Modal close={close}><div className="flex items-start justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#39E675]">Novo contacto</p><h2 className="mt-1 text-2xl font-black tracking-tight">Adicionar lead</h2></div><button onClick={close} className="rounded-xl bg-[#1B293A] p-2"><X size={17}/></button></div><form className="mt-6 grid gap-4" onSubmit={e=>{e.preventDefault();save({action:"create_lead",...form,value:Number(form.value)})}}><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome completo"><input required className={inputClass} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><Field label="Empresa"><input className={inputClass} value={form.company} onChange={e=>setForm({...form,company:e.target.value})}/></Field></div><div className="grid gap-4 sm:grid-cols-2"><Field label="Telefone WhatsApp"><input required className={inputClass} placeholder="+258 84…" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></Field><Field label="E-mail"><input type="email" className={inputClass} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field></div><div className="grid gap-4 sm:grid-cols-2"><Field label="Origem"><select className={inputClass} value={form.source} onChange={e=>setForm({...form,source:e.target.value})}>{["Website","WhatsApp","Instagram","Meta Ads","Indicação","Importação"].map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Valor potencial (MT)"><input type="number" min="0" className={inputClass} value={form.value} onChange={e=>setForm({...form,value:Number(e.target.value)})}/></Field></div><Field label="Interesse"><input className={inputClass} value={form.interest} onChange={e=>setForm({...form,interest:e.target.value})}/></Field><label className="flex items-start gap-3 rounded-xl bg-[#0C1725] p-3"><input type="checkbox" checked={form.consent} onChange={e=>setForm({...form,consent:e.target.checked})} className="mt-1"/><span className="text-[11px] leading-5 text-[#7E8796]"><b>Consentimento confirmado.</b> Este contacto autorizou comunicações comerciais pelo canal indicado.</span></label><div className="mt-2 flex justify-end gap-2"><Button secondary onClick={close}>Cancelar</Button><Button type="submit" disabled={saving}>{saving?<LoaderCircle size={16} className="animate-spin"/>:<Plus size={16}/>} Adicionar ao funil</Button></div></form></Modal>}
-
-function ProposalModal({leads,close,save,saving}:{leads:Lead[];close:()=>void;save:(b:any)=>void;saving:boolean}){const [form,setForm]=useState({leadId:leads[0]?.id||"",title:"Proposta comercial",amount:15000,paymentOption:"50% adiantado"});return <Modal close={close}><div className="flex justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#39E675]">Fechar negócio</p><h2 className="mt-1 text-2xl font-black">Nova proposta</h2></div><button onClick={close}><X/></button></div><form className="mt-6 space-y-4" onSubmit={e=>{e.preventDefault();save({action:"create_proposal",...form,amount:Number(form.amount)})}}><Field label="Lead"><select className={inputClass} value={form.leadId} onChange={e=>setForm({...form,leadId:e.target.value})}>{leads.map(l=><option key={l.id} value={l.id}>{l.name} — {l.company}</option>)}</select></Field><Field label="Título"><input className={inputClass} value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></Field><div className="grid grid-cols-2 gap-4"><Field label="Valor (MT)"><input type="number" min="1" className={inputClass} value={form.amount} onChange={e=>setForm({...form,amount:Number(e.target.value)})}/></Field><Field label="Condição"><select className={inputClass} value={form.paymentOption} onChange={e=>setForm({...form,paymentOption:e.target.value})}><option>50% adiantado</option><option>100% adiantado</option><option>30/40/30</option><option>Pagamento integral</option></select></Field></div><div className="rounded-xl bg-[#10291F] p-3 text-xs leading-5 text-[#B0B7C2]">A proposta será associada ao lead e poderá ser enviada pelo WhatsApp após ligar a conta oficial.</div><div className="flex justify-end gap-2"><Button secondary onClick={close}>Cancelar</Button><Button type="submit" disabled={saving}>{saving?<LoaderCircle size={16} className="animate-spin"/>:<Send size={16}/>} Criar proposta</Button></div></form></Modal>}
-
-function LeadDrawer({lead,close,post,saving}:{lead:Lead;close:()=>void;post:(b:any)=>Promise<boolean>;saving:boolean}){const [message,setMessage]=useState("");return <div className="fixed inset-0 z-[65] bg-[#07111F]/30 backdrop-blur-sm" onClick={close}><aside onClick={e=>e.stopPropagation()} className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto bg-[#111B2A] p-6 shadow-2xl"><div className="flex justify-between"><Pill tone={lead.temperature==="quente"?"red":"amber"}>{lead.temperature}</Pill><button onClick={close}><X/></button></div><div className="mt-5 flex gap-4"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#07111F] text-lg font-black text-[#39E675]">{lead.name.charAt(0)}</div><div><h2 className="text-xl font-black">{lead.name}</h2><p className="mt-1 text-xs text-[#7E8796]">{lead.company} · {lead.location}</p></div></div><div className="mt-6 grid grid-cols-3 gap-2"><Mini label="Score IA" value={String(lead.score)}/><Mini label="Valor" value={money(lead.value)}/><Mini label="Origem" value={lead.source}/></div><div className="mt-6"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[#7E8796]">Interesse</p><p className="mt-2 text-sm font-extrabold">{lead.interest}</p></div><div className="mt-5 rounded-2xl bg-[#10291F] p-4"><p className="text-[10px] font-black text-[#39E675]">PRÓXIMA MELHOR AÇÃO</p><p className="mt-2 text-sm font-black">{lead.nextAction}</p><p className="mt-2 text-xs leading-5 text-[#B0B7C2]">A IA recomenda agir hoje enquanto a intenção ainda está alta.</p></div><div className="mt-6"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[#7E8796]">Mover para</p><select value={lead.stage} onChange={e=>post({action:"update_stage",leadId:lead.id,stage:e.target.value})} className={`${inputClass} mt-2`}>{stages.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</select></div><div className="mt-6"><p className="text-[10px] font-black uppercase tracking-[.12em] text-[#7E8796]">Mensagem rápida</p><textarea value={message} onChange={e=>setMessage(e.target.value)} className={`${inputClass} mt-2 min-h-24 resize-none`} placeholder="Escreva ou use uma sugestão da IA…"/><button onClick={async()=>{if(await post({action:"send_message",leadId:lead.id,body:message})){setMessage("");toast.success("Mensagem registada")}}} disabled={saving||!message} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#07111F] py-3 text-xs font-extrabold text-white disabled:opacity-40"><Send size={15}/> Enviar pelo WhatsApp</button></div><div className="mt-4 flex gap-2"><Button secondary><CalendarClock size={15}/> Agendar</Button><Button secondary><FileText size={15}/> Proposta</Button></div></aside></div>}

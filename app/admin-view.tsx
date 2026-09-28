@@ -1,30 +1,662 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-
 import { useState } from "react";
-import { Check, CircleDollarSign, CreditCard, LoaderCircle, Plus, ShieldCheck, UserPlus, Users, X } from "lucide-react";
-import { toast } from "sonner";
+import { UserPlus, Search, ArrowUpRight, FileCheck, Check } from "lucide-react";
+import {
+  Action,
+  Heading,
+  Modal,
+  Field,
+  Status,
+  EmptyState,
+  money,
+  date,
+} from "../components/nexsell-ui";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "../components/ui/tabs";
 import { NEXSELL_PLANS } from "./plans";
+export type Customer = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  plan: string;
+  accessStatus: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  monthlyAmount: number;
+  externalPaymentReference: string;
+  createdAt: string;
+  activatedAt: string | null;
+};
+export type BillingPayment = {
+  id: string;
+  customerId: string | null;
+  provider: string;
+  reference: string;
+  method: string;
+  amount: number;
+  status: string;
+  createdAt: string;
+  paidAt: string | null;
+  proofPath?: string;
+  transferReference?: string;
+  reviewNote?: string;
+  promoEndsAt?: string | null;
+  landingPageBonus?: boolean;
+  paidPlan?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+};
 
-export type Customer = { id:string; name:string; email:string; phone:string; company:string; plan:string; accessStatus:string; paymentMethod:string; paymentStatus:string; monthlyAmount:number; externalPaymentReference:string; createdAt:string; activatedAt:string|null };
-export type BillingPayment = { id:string; customerId:string|null; provider:string; reference:string; method:string; amount:number; status:string; createdAt:string; paidAt:string|null; proofPath?:string; transferReference?:string; reviewNote?:string };
-type PostFn = (body:Record<string,unknown>)=>Promise<boolean>;
-const money=(n:number)=>new Intl.NumberFormat("pt-MZ",{style:"currency",currency:"MZN",maximumFractionDigits:0}).format(n).replace("MZN","MT");
-const inputClass="w-full rounded-xl border border-[#233044] bg-[#0C1725] px-3 py-2.5 text-sm outline-none focus:border-[#397BFF]";
-
-export function AdminView({customers,payments,post,saving}:{customers:Customer[];payments:BillingPayment[];post:PostFn;saving:boolean}){
-  const [modal,setModal]=useState(false);
-  const active=customers.filter(x=>x.accessStatus==="active");
-  const pending=customers.filter(x=>x.accessStatus==="pending").length;
-  const mrr=active.reduce((sum,x)=>sum+x.monthlyAmount,0);
-  return <><div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-[11px] font-extrabold uppercase tracking-[.16em] text-[#39E675]">Administração da plataforma</p><h1 className="mt-1 text-3xl font-black tracking-[-.04em]">Clientes e subscrições</h1><p className="mt-2 text-sm text-[#7E8796]">Confira as transferências, analise comprovativos e aprove o acesso de cada cliente.</p></div><button onClick={()=>setModal(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#39E675] px-4 py-2.5 text-sm font-extrabold text-[#07111F]"><UserPlus size={16}/> Adicionar utilizador</button></div>
-    <div className="grid gap-4 sm:grid-cols-3">{[[Users,"Clientes ativos",String(active.length),"green"],[CreditCard,"Pedidos pendentes",String(pending),"blue"],[CircleDollarSign,"Receita mensal",money(mrr),"amber"]].map(([Icon,label,value,tone]:any)=><div key={label} className="rounded-2xl border border-[#233044] bg-[#111B2A] p-5"><div className={`grid h-10 w-10 place-items-center rounded-xl ${tone==="green"?"bg-[#153B2A] text-[#39E675]":tone==="blue"?"bg-[#142C55] text-[#6E9CFF]":"bg-[#3D3218] text-[#F6C945]"}`}><Icon size={19}/></div><p className="mt-4 text-xs font-bold text-[#7E8796]">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div>
-    <div className="mt-5 overflow-hidden rounded-2xl border border-[#233044] bg-[#111B2A]"><div className="flex items-center justify-between border-b border-[#233044] p-5"><div><p className="text-sm font-black">Contas de clientes</p><p className="mt-1 text-xs text-[#7E8796]">Escolha o pacote de cada cliente. As permissões e limites são aplicados imediatamente.</p></div><ShieldCheck className="text-[#39E675]" size={20}/></div><div className="overflow-x-auto"><table className="w-full min-w-[920px] text-left text-xs"><thead><tr className="bg-[#0C1725] text-[10px] uppercase tracking-[.08em] text-[#7E8796]"><th className="px-5 py-3">Cliente</th><th>Pacote atribuído</th><th>Pagamento</th><th>Valor</th><th>Acesso</th><th className="pr-5 text-right">Ação</th></tr></thead><tbody>{customers.map(c=><tr key={c.id} className="border-t border-[#1B293A]"><td className="px-5 py-4"><p className="font-black">{c.name}{c.company?` · ${c.company}`:""}</p><p className="mt-1 text-[11px] text-[#7E8796]">{c.email} · {c.phone}</p></td><td><select aria-label={`Plano de ${c.name}`} disabled={saving} className="rounded-lg border border-[#2A3A50] bg-[#0C1725] px-2.5 py-2 text-xs font-black text-[#F7F9FC] outline-none focus:border-[#397BFF]" value={c.plan} onChange={async e=>{if(await post({action:"update_customer_plan",customerId:c.id,plan:e.target.value}))toast.success(`Plano alterado para ${e.target.value}`)}}>{NEXSELL_PLANS.map(plan=><option key={plan.key} value={plan.name}>{plan.name}</option>)}</select></td><td><p className="font-bold">{c.paymentMethod}</p><p className="mt-1 text-[10px] text-[#7E8796]">{c.paymentStatus}</p></td><td className="font-black">{money(c.monthlyAmount)}</td><td><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${c.accessStatus==="active"?"bg-[#153B2A] text-[#39E675]":c.accessStatus==="suspended"?"bg-[#402329] text-[#FF7A83]":"bg-[#3D3218] text-[#F6C945]"}`}>{c.accessStatus==="active"?"Ativo":c.accessStatus==="suspended"?"Suspenso":"Pendente"}</span></td><td className="pr-5 text-right">{c.accessStatus==="active"?<button disabled={saving} onClick={async()=>{if(await post({action:"update_customer_status",customerId:c.id,status:"suspended"}))toast.success("Acesso suspenso")}} className="font-extrabold text-[#FF7A83]">Suspender</button>:c.accessStatus==="suspended"?<button disabled={saving} onClick={async()=>{if(await post({action:"update_customer_status",customerId:c.id,status:"active"}))toast.success("Acesso reactivado")}} className="font-extrabold text-[#39E675]">Reactivar</button>:<span>Rever comprovativo abaixo</span>}</td></tr>)}</tbody></table>{!customers.length&&<div className="p-12 text-center text-sm text-[#7E8796]">Ainda não existem clientes registados.</div>}</div></div>
-    <div className="mt-5 rounded-2xl border border-[#233044] bg-[#111B2A] p-5"><p className="text-sm font-black">Pagamentos recentes</p><div className="mt-4 grid gap-2">{payments.map(p=><div key={p.id} className="flex flex-col gap-2 rounded-xl bg-[#0C1725] p-3 text-xs sm:flex-row sm:items-center"><span className="font-black">{p.reference}</span><span className="text-[#7E8796]">{p.provider} · {p.method}</span><span className="sm:ml-auto font-black">{money(p.amount)}</span><span className={p.status==="paid"?"text-[#39E675]":"text-[#F6C945]"}>{p.status}</span>{p.transferReference&&<span>{p.transferReference}</span>}{p.proofPath&&<a className="text-[#8FB1FF] underline" href={`/api/billing/proof?id=${encodeURIComponent(p.id)}`} target="_blank" rel="noreferrer">Ver comprovativo</a>}{p.status==="under_review"&&<><button disabled={saving} className="font-bold text-[#39E675]" onClick={async()=>{if(window.confirm("Confirmou a entrada deste valor na sua conta?"))await post({action:"review_payment",paymentId:p.id,approve:true})}}>Aprovar e activar</button><button disabled={saving} className="text-[#FF7A83]" onClick={async()=>{const note=window.prompt("Motivo da recusa (visível ao cliente):");if(note&&note.trim().length>=3)await post({action:"review_payment",paymentId:p.id,approve:false,note})}}>Recusar</button></>}{p.reviewNote&&<span>{p.reviewNote}</span>}</div>)}{!payments.length&&<p className="text-xs text-[#7E8796]">Sem movimentos registados.</p>}</div></div>
-    {modal&&<CustomerModal saving={saving} close={()=>setModal(false)} save={async body=>{if(await post(body)){setModal(false);toast.success("Utilizador ativado e subscrição criada")}}}/>}</>;
+type PostFn = (body: Record<string, unknown>) => Promise<boolean>;
+export function AdminView({
+  customers,
+  payments,
+  post,
+  saving,
+}: {
+  customers: Customer[];
+  payments: BillingPayment[];
+  post: PostFn;
+  saving: boolean;
+}) {
+  const [open, setOpen] = useState(false),
+    [search, setSearch] = useState(""),
+    [filter, setFilter] = useState("under_review"),
+    [review, setReview] = useState<BillingPayment | null>(null),
+    [change, setChange] = useState<{
+      customer: Customer;
+      plan?: string;
+      status?: string;
+    } | null>(null);
+  const waiting = payments.filter((p) => p.status === "under_review"),
+    visible = payments.filter(
+      (p) =>
+        filter === "all" ||
+        (filter === "bonus" ? p.landingPageBonus : p.status === filter),
+    );
+  return (
+    <>
+      <Heading
+        eyebrow="Administração da plataforma"
+        title="Clientes e subscrições"
+        description="Confira transferências, atribua pacotes e acompanhe o acesso."
+        action={
+          <Action onClick={() => setOpen(true)}>
+            <UserPlus size={17} /> Adicionar cliente
+          </Action>
+        }
+      />
+      <div className="nx-metrics !grid-cols-3">
+        {[
+          [
+            "Clientes activos",
+            customers.filter((c) => c.accessStatus === "active").length,
+          ],
+          ["Comprovativos por rever", waiting.length],
+          [
+            "Landing pages atribuídas",
+            payments.filter((p) => p.landingPageBonus).length,
+          ],
+        ].map(([label, value]) => (
+          <div key={label} className="nx-metric">
+            <p>{label}</p>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </div>
+      <Tabs defaultValue="payments">
+        <TabsList variant="line" className="mb-5 gap-5">
+          <TabsTrigger value="payments">
+            Pagamentos · {waiting.length} por rever
+          </TabsTrigger>
+          <TabsTrigger value="customers">
+            Clientes · {customers.length}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="payments">
+          <section className="nx-panel">
+            <div className="nx-toolbar">
+              <Field label="Estado do pagamento">
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                >
+                  <option value="under_review">Em análise</option>
+                  <option value="pending">Aguarda comprovativo</option>
+                  <option value="rejected">Recusados</option>
+                  <option value="paid">Pagos</option>
+                  <option value="bonus">Com landing page</option>
+                  <option value="all">Todos os pagamentos</option>
+                </select>
+              </Field>
+              <span className="nx-label">
+                A aprovação activa o pacote do pedido.
+              </span>
+            </div>
+            {visible.length ? (
+              <table className="nx-table nx-table-mobile">
+                <thead>
+                  <tr>
+                    <th>Cliente / pedido</th>
+                    <th>Pacote e valor</th>
+                    <th>Estado</th>
+                    <th>Bónus</th>
+                    <th>Acção</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((p) => {
+                    const c = customers.find((c) => c.id === p.customerId);
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <strong>{c?.name ?? "Cliente"}</strong>
+                          <small>{c?.email}</small>
+                          <small className="break-all">{p.reference}</small>
+                        </td>
+                        <td data-label="Pacote">
+                          {p.paidPlan || c?.plan}
+                          <small>
+                            {money(p.amount)} · {p.method}
+                          </small>
+                        </td>
+                        <td data-label="Estado">
+                          <Status value={p.status} />
+                        </td>
+                        <td data-label="Landing page">
+                          {p.landingPageBonus ? (
+                            <span className="text-[#7CF1A5]">Atribuída</span>
+                          ) : p.status === "paid" ? (
+                            "Não elegível"
+                          ) : p.promoEndsAt ? (
+                            "Verificar data"
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            className="text-[#A8C5FF]"
+                            onClick={() => setReview(p)}
+                          >
+                            {p.status === "under_review"
+                              ? "Analisar"
+                              : "Ver detalhe"}{" "}
+                            <ArrowUpRight size={14} className="inline" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <EmptyState title="Nenhum pagamento neste estado.">
+                Os comprovativos enviados pelos clientes aparecem em “Em
+                análise”.
+              </EmptyState>
+            )}
+          </section>
+        </TabsContent>
+        <TabsContent value="customers">
+          <section className="nx-panel">
+            <div className="nx-toolbar">
+              <div className="nx-search">
+                <Search size={17} />
+                <input
+                  className="nx-input"
+                  aria-label="Pesquisar clientes"
+                  placeholder="Pesquisar nome, empresa ou e-mail"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+            {customers.length ? (
+              <table className="nx-table nx-table-mobile">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Pacote</th>
+                    <th>Acesso</th>
+                    <th>Acção</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers
+                    .filter((c) =>
+                      (c.name + c.company + c.email)
+                        .toLowerCase()
+                        .includes(search.toLowerCase()),
+                    )
+                    .map((c) => (
+                      <tr key={c.id}>
+                        <td>
+                          <strong>{c.name}</strong>
+                          <small>
+                            {c.company} · {c.email}
+                          </small>
+                        </td>
+                        <td data-label="Pacote">
+                          <select
+                            className="nx-input"
+                            aria-label={"Pacote de " + c.name}
+                            disabled={saving}
+                            value={c.plan}
+                            onChange={(e) =>
+                              setChange({ customer: c, plan: e.target.value })
+                            }
+                          >
+                            {NEXSELL_PLANS.map((p) => (
+                              <option key={p.key}>{p.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td data-label="Acesso">
+                          <Status value={c.accessStatus} />
+                        </td>
+                        <td>
+                          {c.accessStatus === "pending" ? (
+                            <span className="nx-label">Aguarda pagamento</span>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                setChange({
+                                  customer: c,
+                                  status:
+                                    c.accessStatus === "active"
+                                      ? "suspended"
+                                      : "active",
+                                })
+                              }
+                            >
+                              {c.accessStatus === "active"
+                                ? "Suspender"
+                                : "Reactivar"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            ) : (
+              <EmptyState title="Ainda não há clientes.">
+                Pode adicionar um cliente que tenha pago fora do site.
+              </EmptyState>
+            )}
+          </section>
+        </TabsContent>
+      </Tabs>
+      {open && (
+        <CustomerForm
+          close={() => setOpen(false)}
+          saving={saving}
+          post={post}
+        />
+      )}
+      {review && (
+        <ReviewDialog
+          payment={review}
+          customer={customers.find((c) => c.id === review.customerId)}
+          close={() => setReview(null)}
+          saving={saving}
+          post={post}
+        />
+      )}
+      {change && (
+        <Modal
+          onClose={() => setChange(null)}
+          title={change.plan ? "Alterar pacote" : "Alterar acesso"}
+          description={change.customer.name + " · " + change.customer.email}
+        >
+          <p>
+            {change.plan
+              ? "Mudar de " +
+                change.customer.plan +
+                " para " +
+                change.plan +
+                ". Os registos serão preservados; os agentes e recursos acima do novo limite deixam de poder ser utilizados."
+              : change.status === "suspended"
+                ? "Suspender o acesso desta empresa? Os dados continuam guardados."
+                : "Reactivar o acesso sem prolongar a validade da subscrição?"}
+          </p>
+          <div className="nx-actions justify-end">
+            <Action secondary onClick={() => setChange(null)}>
+              Cancelar
+            </Action>
+            <Action
+              busy={saving}
+              onClick={async () => {
+                if (
+                  await post(
+                    change.plan
+                      ? {
+                          action: "update_customer_plan",
+                          customerId: change.customer.id,
+                          plan: change.plan,
+                        }
+                      : {
+                          action: "update_customer_status",
+                          customerId: change.customer.id,
+                          status: change.status,
+                        },
+                  )
+                )
+                  setChange(null);
+              }}
+            >
+              Confirmar alteração
+            </Action>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
 }
-
-function CustomerModal({saving,close,save}:{saving:boolean;close:()=>void;save:(body:Record<string,unknown>)=>void}){
-  const [form,setForm]=useState({name:"",email:"",phone:"",company:"",plan:"Growth",paymentMethod:"e-Mola",amount:4990,reference:"",notes:""});
-  return <div className="fixed inset-0 z-[70] grid place-items-center bg-[#07111F]/75 p-4 backdrop-blur" onMouseDown={close}><section onMouseDown={e=>e.stopPropagation()} className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-[#233044] bg-[#111B2A] p-6"><div className="flex justify-between"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#39E675]">Pagamento fora do site</p><h2 className="mt-1 text-2xl font-black">Adicionar e ativar cliente</h2></div><button onClick={close}><X/></button></div><form className="mt-6 grid gap-4" onSubmit={e=>{e.preventDefault();save({action:"create_customer",...form,amount:Number(form.amount)})}}><div className="grid gap-4 sm:grid-cols-2"><input required className={inputClass} placeholder="Nome completo" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><input className={inputClass} placeholder="Empresa" value={form.company} onChange={e=>setForm({...form,company:e.target.value})}/></div><div className="grid gap-4 sm:grid-cols-2"><input required type="email" className={inputClass} placeholder="E-mail de acesso" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/><input required className={inputClass} placeholder="WhatsApp +258…" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div><div className="grid gap-4 sm:grid-cols-2"><select className={inputClass} value={form.plan} onChange={e=>{const selected=NEXSELL_PLANS.find(plan=>plan.name===e.target.value);setForm({...form,plan:e.target.value,amount:selected?.monthlyAmount??form.amount})}}>{NEXSELL_PLANS.map(plan=><option key={plan.key} value={plan.name}>{plan.name} — {money(plan.monthlyAmount)}</option>)}</select><select className={inputClass} value={form.paymentMethod} onChange={e=>setForm({...form,paymentMethod:e.target.value})}>{["M-Pesa","e-Mola","Transferência","Numerário","Outro"].map(x=><option key={x}>{x}</option>)}</select></div><input type="number" min="0" className={inputClass} value={form.amount} onChange={e=>setForm({...form,amount:Number(e.target.value)})}/><input className={inputClass} placeholder="Referência do pagamento (opcional)" value={form.reference} onChange={e=>setForm({...form,reference:e.target.value})}/><textarea className={`${inputClass} min-h-20 resize-none`} placeholder="Notas internas" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/><div className="rounded-xl bg-[#10291F] p-4 text-xs leading-5 text-[#B0B7C2]"><p className="flex items-center gap-2 font-black text-[#39E675]"><Check size={15}/> Acesso imediato ao plano {form.plan}</p><p className="mt-1">Será criada uma subscrição ativa. O cliente cria a conta e define a sua palavra-passe em /login usando exactamente este e-mail. Se já tiver conta, basta entrar.</p></div><div className="flex justify-end gap-2"><button type="button" onClick={close} className="rounded-xl border border-[#233044] px-4 py-2.5 text-sm font-extrabold">Cancelar</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[#39E675] px-4 py-2.5 text-sm font-extrabold text-[#07111F] disabled:opacity-50">{saving?<LoaderCircle size={16} className="animate-spin"/>:<Plus size={16}/>} Criar e ativar</button></div></form></section></div>;
+function ReviewDialog({
+  payment: p,
+  customer: c,
+  close,
+  saving,
+  post,
+}: {
+  payment: BillingPayment;
+  customer?: Customer;
+  close: () => void;
+  saving: boolean;
+  post: PostFn;
+}) {
+  const [paidAt, setPaidAt] = useState(""),
+    [note, setNote] = useState(""),
+    [confirmed, setConfirmed] = useState(false),
+    [error, setError] = useState("");
+  async function act(approve: boolean) {
+    setError("");
+    let timestamp: string | undefined;
+    if (approve) {
+      const value = new Date(paidAt + ":00+02:00");
+      if (
+        !paidAt ||
+        !Number.isFinite(value.getTime()) ||
+        value.getTime() > Date.now()
+      ) {
+        setError("Indique uma data válida da transferência (hora de Maputo).");
+        return;
+      }
+      if (!confirmed) {
+        setError("Confirme a entrada do valor antes de aprovar.");
+        return;
+      }
+      timestamp = value.toISOString();
+    } else if (note.trim().length < 3) {
+      setError("Explique o motivo da recusa ao cliente.");
+      return;
+    }
+    if (
+      await post({
+        action: "review_payment",
+        paymentId: p.id,
+        approve,
+        paidAt: timestamp,
+        note,
+      })
+    )
+      close();
+  }
+  return (
+    <Modal
+      onClose={close}
+      title={
+        p.status === "under_review"
+          ? "Analisar comprovativo"
+          : "Detalhe do pagamento"
+      }
+      description={(c?.name ?? "Cliente") + " · " + (c?.email ?? "")}
+    >
+      <div className="nx-actions justify-between">
+        <strong className="text-2xl">{money(p.amount)}</strong>
+        <Status value={p.status} />
+      </div>
+      <dl className="grid gap-3 text-sm">
+        <div>
+          <dt className="nx-label">Plano e método</dt>
+          <dd>
+            {p.paidPlan || c?.plan} · {p.method}
+          </dd>
+        </div>
+        <div>
+          <dt className="nx-label">Referência da transferência</dt>
+          <dd className="break-all">{p.transferReference || "Por indicar"}</dd>
+        </div>
+      </dl>
+      {p.proofPath && (
+        <a
+          className="nx-button nx-secondary"
+          href={"/api/billing/proof?id=" + encodeURIComponent(p.id)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Abrir comprovativo privado <ArrowUpRight size={17} />
+        </a>
+      )}
+      {p.promoEndsAt && (
+        <div className="nx-notice">
+          <p>
+            O pagamento deve ser anterior a{" "}
+            <strong>{date(p.promoEndsAt)}</strong> (Maputo) para esta oferta. A
+            data de aprovação não altera o prazo.
+          </p>
+        </div>
+      )}
+      {p.landingPageBonus && (
+        <p className="nx-success">
+          <Check size={18} className="inline mr-2" />
+          Landing page atribuída. Contacte o cliente para combinar a criação.
+        </p>
+      )}
+      {p.status === "under_review" ? (
+        <>
+          <Field label="Data e hora efectiva da transferência (Maputo)">
+            <input
+              type="datetime-local"
+              value={paidAt}
+              onChange={(e) => setPaidAt(e.target.value)}
+            />
+          </Field>
+          <Field label="Nota para o cliente / motivo de recusa">
+            <textarea
+              value={note}
+              maxLength={500}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Explique o que precisa de ser corrigido em caso de recusa."
+            />
+          </Field>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+            />
+            <span>
+              Conferi a entrada de {money(p.amount)} na conta, a referência e a
+              data da transferência.
+            </span>
+          </label>
+          {error && (
+            <p role="alert" className="nx-error">
+              {error}
+            </p>
+          )}
+          <div className="nx-actions justify-end">
+            <Action secondary busy={saving} onClick={() => act(false)}>
+              Recusar com motivo
+            </Action>
+            <Action busy={saving} onClick={() => act(true)}>
+              Aprovar e activar
+            </Action>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="nx-label">Transferência: {date(p.paidAt)}</p>
+          <p className="nx-label">
+            Revisto por {p.reviewedBy || "—"} · {date(p.reviewedAt)}
+          </p>
+          {p.reviewNote && <p>{p.reviewNote}</p>}
+        </>
+      )}
+    </Modal>
+  );
+}
+function CustomerForm({
+  close,
+  saving,
+  post,
+}: {
+  close: () => void;
+  saving: boolean;
+  post: PostFn;
+}) {
+  const [form, setForm] = useState({
+      name: "",
+      email: "",
+      phone: "",
+      company: "",
+      plan: "Starter",
+      paymentMethod: "EMOLA",
+      reference: "",
+      notes: "",
+      paidAt: "",
+    }),
+    [confirmed, setConfirmed] = useState(false),
+    [error, setError] = useState("");
+  const plan = NEXSELL_PLANS.find((p) => p.name === form.plan)!;
+  return (
+    <Modal
+      onClose={close}
+      title="Adicionar e activar cliente"
+      description="Registe um pagamento já conferido. O cliente define a sua própria palavra-passe."
+    >
+      <form
+        className="nx-form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setError("");
+          const d = new Date(form.paidAt + ":00+02:00");
+          if (
+            !confirmed ||
+            !Number.isFinite(d.getTime()) ||
+            d.getTime() > Date.now()
+          ) {
+            setError("Confirme o recebimento e indique uma data válida.");
+            return;
+          }
+          if (
+            await post({
+              action: "create_customer",
+              ...form,
+              amount: plan.monthlyAmount,
+              paidAt: d.toISOString(),
+            })
+          )
+            close();
+        }}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[
+            ["name", "Nome", "text"],
+            ["email", "E-mail de acesso", "email"],
+            ["phone", "WhatsApp", "tel"],
+            ["company", "Empresa", "text"],
+          ].map(([key, label, type]) => (
+            <Field key={key} label={label}>
+              <input
+                required={key !== "company"}
+                type={type}
+                value={form[key as keyof typeof form]}
+                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+              />
+            </Field>
+          ))}
+        </div>
+        <Field label="Pacote">
+          <select
+            value={form.plan}
+            onChange={(e) => setForm({ ...form, plan: e.target.value })}
+          >
+            {NEXSELL_PLANS.map((p) => (
+              <option value={p.name} key={p.key}>
+                {p.name} — {money(p.monthlyAmount)}/mês
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Método">
+          <select
+            value={form.paymentMethod}
+            onChange={(e) =>
+              setForm({ ...form, paymentMethod: e.target.value })
+            }
+          >
+            <option value="EMOLA">e-Mola</option>
+            <option value="BCI">BCI</option>
+            <option>Numerário</option>
+            <option>Outro</option>
+          </select>
+        </Field>
+        <Field label="Referência do recebimento">
+          <input
+            required
+            minLength={3}
+            value={form.reference}
+            onChange={(e) => setForm({ ...form, reference: e.target.value })}
+          />
+        </Field>
+        <Field label="Data e hora da transferência (Maputo)">
+          <input
+            required
+            type="datetime-local"
+            value={form.paidAt}
+            onChange={(e) => setForm({ ...form, paidAt: e.target.value })}
+          />
+        </Field>
+        <Field label="Notas internas">
+          <textarea
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
+        </Field>
+        <label className="flex gap-3 text-sm">
+          <input
+            required
+            type="checkbox"
+            checked={confirmed}
+            onChange={(e) => setConfirmed(e.target.checked)}
+          />
+          <span>Conferi o pagamento de {money(plan.monthlyAmount)}.</span>
+        </label>
+        <p className="nx-label">
+          O cliente deve criar a conta em /login com exactamente este e-mail e
+          confirmá-lo. Se já tiver conta, basta entrar. Nenhum e-mail de convite
+          será enviado automaticamente.
+        </p>
+        {error && (
+          <p role="alert" className="nx-error">
+            {error}
+          </p>
+        )}
+        <Action type="submit" busy={saving}>
+          Criar cliente e activar pacote
+        </Action>
+      </form>
+    </Modal>
+  );
 }
